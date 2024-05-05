@@ -1,5 +1,7 @@
 #include <immintrin.h> // AVX2 intrinsics
 #include <time.h>
+#include <assert.h>
+#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,13 +12,17 @@
 #define PARAMS_N 1344
 #define PARAMS_NBAR 8
 
+#ifdef DEBUG
 #define DBG(fmt, ...) do {                                  \
     fprintf(stdout, "%s:%d ", __FUNCTION__, __LINE__);      \
     fprintf(stdout, fmt, __VA_ARGS__);                      \
     fprintf(stdout, "\n");                                  \
 } while (0)
+#else
+#define DBG(...)
+#endif
 
-typedef int16_t **matrix_t;
+typedef int16_t *matrix_t;
 
 #pragma region mem
 
@@ -34,19 +40,10 @@ typedef int16_t **matrix_t;
  * @post Matris belleği dinamik olarak tahsis edilmelidir.
  */
 matrix_t matrix_new(uint16_t row, uint16_t col) {
-    matrix_t new = (matrix_t)_mm_malloc(row * sizeof(int16_t*), 32);
-    if (new == NULL) {
-        printf("new = NULL!\n");
-        exit(1);
-    }
-    for (uint16_t i = 0; i < row; i++) {
-        new[i] = (int16_t*)_mm_malloc(col * sizeof(int16_t), 32);
-        if (new[i] == NULL) {
-            printf("new[%hu] = NULL!\n", i);
-            exit(1);
-        }
-        memset(new[i], 0, col * sizeof(int16_t));
-    }
+    matrix_t new = (matrix_t)_mm_malloc(row * col * sizeof(int16_t), 32);
+    assert(new);
+    DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
+    memset(new, 0, row * col * sizeof(int16_t));
     return new;
 }
 
@@ -64,10 +61,8 @@ matrix_t matrix_new(uint16_t row, uint16_t col) {
  * @post Matrisin belleği serbest bırakılmalıdır.
  */
 void matrix_free(matrix_t matrix, uint16_t row) {
-    for (uint16_t i = 0; i < row; i++) {
-        _mm_free(matrix[i]);
-    }
     _mm_free(matrix);
+    DBG("freed a matrix with %hu rows", row);
 }
 #pragma endregion // mem
 
@@ -89,7 +84,7 @@ void matrix_free(matrix_t matrix, uint16_t row) {
 void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
-            matrix[i][j] = rand() % INT16_MAX;
+            matrix[i * row + j] = rand() % INT16_MAX;
         }
     }
 }
@@ -112,7 +107,7 @@ void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
 void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
-            printf("%hd ", matrix[i][j]);
+            printf("%hd ", matrix[i * row + j]);
         }
         printf("\n");
     }
@@ -149,11 +144,6 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
  * @post C matrisi, A ve B matrislerinin çarpımını içermelidir.
  */
 void matrix_multiply(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint16_t n, uint16_t l) {
-    // Initialize matrix C to zero
-    for (uint16_t i = 0; i < m; i++) {
-        memset(c[i], 0, l * sizeof(int16_t));
-    }
-
     // Perform matrix multiplication using AVX2
     for (uint16_t i = 0; i < m; i++) {
         for (uint16_t j = 0; j < l; j++) {
@@ -161,15 +151,15 @@ void matrix_multiply(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint16_t n,
 
             for (uint16_t k = 0; k < n; k += 16) { // Process 16 elements at a time
                 if (k + 16 <= n) {  // Ensure we do not go out of bounds
-                    __m256i vec_a = _mm256_loadu_si256((__m256i*)&a[i][k]); // Load 16 elements from row i of A
-                    __m256i vec_b = _mm256_loadu_si256((__m256i*)&b[k][j]); // Load 16 elements from column j of B, transposed for continuous access
+                    __m256i vec_a = _mm256_loadu_si256((__m256i*)&a[i * m + k]); // Load 16 elements from row i of A
+                    __m256i vec_b = _mm256_loadu_si256((__m256i*)&b[k * n + j]); // Load 16 elements from column j of B, transposed for continuous access
                     __m256i vec_mul = _mm256_mullo_epi16(vec_a, vec_b);  // Multiply the elements
                     sum_vec = _mm256_add_epi16(sum_vec, vec_mul); // Add the results to the sum vector
                 } else {
                     // Handle the case where n is not a multiple of 16
                     for (uint16_t x = k; x < n; x++) {
-                        int16_t product = a[i][x] * b[x][j];
-                        c[i][j] += product; // Scalar addition for remaining elements
+                        int16_t product = a[i * m + x] * b[x * n + j];
+                        c[i * m + j] += product; // Scalar addition for remaining elements
                     }
                 }
             }
@@ -177,7 +167,7 @@ void matrix_multiply(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint16_t n,
             // Horizontal sum of sum_vec and store result in matrix C
             int16_t *elements = (int16_t*)&sum_vec;
             for (int idx = 0; idx < 16; idx++) {
-                c[i][j] += elements[idx];
+                c[i * m + j] += elements[idx];
             }
         }
     }
@@ -233,7 +223,7 @@ void matrix_multiply_normal(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint
     for (uint16_t i = 0; i < m; i++) {
         for (uint16_t j = 0; j < l; j++) {
             for (uint16_t k = 0; k < n; k++) {
-                c[i][j] += a[i][k] * b[k][j];
+                c[i * m + j] += a[i * m + k] * b[k * n + j];
             }
         }
     }
