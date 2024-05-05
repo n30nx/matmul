@@ -19,6 +19,20 @@
 typedef int16_t **matrix_t;
 
 #pragma region mem
+
+/*
+ * Create a New Matrix
+ *
+ * Belirtilen satır ve sütun sayısına sahip yeni bir matris oluşturur ve bellek tahsis eder.
+ *
+ * @param row: Oluşturulacak matrisin satır sayısı
+ * @param col: Oluşturulacak matrisin sütun sayısı
+ *
+ * @pre row ve col sıfırdan farklı olmalıdır.
+ *
+ * @post Oluşturulan matris, her bir elemanı sıfır olan bir matris olmalıdır.
+ * @post Matris belleği dinamik olarak tahsis edilmelidir.
+ */
 matrix_t matrix_new(uint16_t row, uint16_t col) {
     matrix_t new = (matrix_t)_mm_malloc(row * sizeof(int16_t*), 32);
     if (new == NULL) {
@@ -36,6 +50,19 @@ matrix_t matrix_new(uint16_t row, uint16_t col) {
     return new;
 }
 
+/*
+ * Free Matrix Memory
+ *
+ * Bu işlev, dinamik olarak tahsis edilmiş belleği serbest bırakır ve bir matrisin bellek sızıntısını önler.
+ *
+ * @param matrix: Serbest bırakılacak matris
+ * @param row: Matrisin satır sayısı
+ *
+ * @pre matrix NULL olmamalıdır.
+ * @pre row sıfırdan farklı olmalıdır.
+ *
+ * @post Matrisin belleği serbest bırakılmalıdır.
+ */
 void matrix_free(matrix_t matrix, uint16_t row) {
     for (uint16_t i = 0; i < row; i++) {
         _mm_free(matrix[i]);
@@ -45,6 +72,20 @@ void matrix_free(matrix_t matrix, uint16_t row) {
 #pragma endregion // mem
 
 #pragma region utils
+/*
+ * Assign Random Values to Matrix
+ *
+ * Bu işlev, belirtilen satır ve sütun sayısına sahip bir matrise rastgele tam sayı değerleri atar.
+ *
+ * @param matrix: Değerlerin atanacağı matris
+ * @param row: Matrisin satır sayısı
+ * @param col: Matrisin sütun sayısı
+ *
+ * @pre matrix NULL olmamalıdır.
+ * @pre row ve col sıfırdan farklı olmalıdır.
+ *
+ * @post Matris, her bir elemanı 0 ile INT16_MAX (hariç) arasında rastgele bir tam sayı ile doldurulmalıdır.
+ */
 void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
@@ -53,6 +94,21 @@ void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     }
 }
 
+
+/*
+ * Print Matrix
+ *
+ * Bu işlev, belirtilen satır ve sütun sayısına sahip bir matrisi ekrana yazdırır.
+ *
+ * @param matrix: Yazdırılacak matris
+ * @param row: Matrisin satır sayısı
+ * @param col: Matrisin sütun sayısı
+ *
+ * @pre matrix NULL olmamalıdır.
+ * @pre row ve col sıfırdan farklı olmalıdır.
+ *
+ * @post Matris, terminalde yazdırılmalıdır.
+ */
 void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
@@ -71,6 +127,27 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
 // Schönhage-Strassen Algorithm
 // TODO: https://en.wikipedia.org/wiki/Sch%C3%B6nhage%E2%80%93Strassen_algorithm
 //       https://www.sanfoundry.com/c-program-implement-schonhage-strassen-algorithm-multiplication-two-numbers/
+/*
+ * Matrix Multiplication Using AVX2 Intrinsics
+ *
+ * Çarpma işlemi sırasında kullanılan vektör işlemleri AVX2 SIMD (Single Instruction, Multiple Data) komutları kullanılarak gerçekleştirilir.
+ * Bu işlev, matris a ve b'nin çarpımını hesaplar ve sonucu matris c'ye yazar.
+ *
+ * @param a: Çarpan matris A
+ * @param b: Çarpan matris B
+ * @param c: Sonuç matris C
+ * @param m: A matrisinin satır sayısı
+ * @param n: A matrisinin sütun sayısı ve B matrisinin satır sayısı
+ * @param l: B matrisinin sütun sayısı ve C matrisinin sütun sayısı
+ *
+ * @pre a, b ve c NULL olmamalıdır.
+ * @pre m, n ve l sıfırdan farklı olmalıdır.
+ * @pre A matrisinin sütun sayısı (n) B matrisinin satır sayısına (n) eşit olmalıdır.
+ * @pre A matrisinin satır sayısı (m), C matrisinin satır sayısına (m) eşit olmalıdır.
+ * @pre B matrisinin sütun sayısı (l), C matrisinin sütun sayısına (l) eşit olmalıdır.
+ *
+ * @post C matrisi, A ve B matrislerinin çarpımını içermelidir.
+ */
 void matrix_multiply(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint16_t n, uint16_t l) {
     // Initialize matrix C to zero
     for (uint16_t i = 0; i < m; i++) {
@@ -130,6 +207,28 @@ void matrix_multiply(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint16_t n,
     }
 }*/
 
+
+/*
+ * Normal Matrix Multiplication
+ *
+ * Bu işlev, matris a ve b'nin çarpımını hesaplar ve sonucu matris c'ye yazar.
+ * Çarpma işlemi, basit üçlü döngülerle gerçekleştirilir.
+ *
+ * @param a: Çarpan matris A
+ * @param b: Çarpan matris B
+ * @param c: Sonuç matris C
+ * @param m: A matrisinin satır sayısı
+ * @param n: A matrisinin sütun sayısı ve B matrisinin satır sayısı
+ * @param l: B matrisinin sütun sayısı ve C matrisinin sütun sayısı
+ *
+ * @pre a, b ve c NULL olmamalıdır.
+ * @pre m, n ve l sıfırdan farklı olmalıdır.
+ * @pre A matrisinin sütun sayısı (n) B matrisinin satır sayısına (n) eşit olmalıdır.
+ * @pre A matrisinin satır sayısı (m), C matrisinin satır sayısına (m) eşit olmalıdır.
+ * @pre B matrisinin sütun sayısı (l), C matrisinin sütun sayısına (l) eşit olmalıdır.
+ *
+ * @post C matrisi, A ve B matrislerinin çarpımını içermelidir.
+ */
 void matrix_multiply_normal(matrix_t a, matrix_t b, matrix_t c, uint16_t m, uint16_t n, uint16_t l) {
     for (uint16_t i = 0; i < m; i++) {
         for (uint16_t j = 0; j < l; j++) {
