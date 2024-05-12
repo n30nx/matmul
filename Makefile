@@ -1,13 +1,14 @@
 CC = gcc
-INTRINSICS = -march=native -mavx
+INTRINSICS = -mavx
+CFLAGS = -march=native
 DEBUG = -g -D DEBUG
-OPTIMIZE = -O0
-WARN = -Wall
+OPTIMIZE = -O3
+WARN = -Wall -Wextra -Werror
 SRC = main.c
 OUT = -o main
 ASAN = -fsanitize=address,undefined
 
-BASE = $(CC) $(OPTIMIZE) $(WARN) $(OUT) $(SRC)
+BASE = $(CC) $(OPTIMIZE) $(WARN) $(OUT) $(CFLAGS) $(SRC)
 
 ifeq ($(PLATFORM),x86_64)
   BASE += $(INTRINSICS)

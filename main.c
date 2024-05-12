@@ -17,11 +17,11 @@
     #endif
 #endif
 
-#ifdef __x86_64__
+#if defined(__x86_64__)
     #include <immintrin.h>
 #endif
 
-#ifdef DEBUG
+#if defined(DEBUG)
     #define DBG(fmt, ...) do {                                  \
         fprintf(stdout, "%s:%d ", __FUNCTION__, __LINE__);      \
         fprintf(stdout, fmt, __VA_ARGS__);                      \
@@ -98,8 +98,6 @@ void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     }
 }
 
-
-
 /*
  * Print Matrix
  *
@@ -124,9 +122,6 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
     printf("\n\n\n");
 }
 
-
-
-
 /*
  * Matrix Addition
  *
@@ -143,13 +138,29 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
  * @post Matrix c contains the result of the addition of matrix a and matrix b.
  */
 void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+#if defined(__x86_64__)
+    uint16_t num_elems = size * size;
+    for (uint16_t i = 0; i < num_elems; i += 8) {
+        if (i + 8 <= num_elems) {  // Ensure we do not go out of bounds
+            __m128i vec_a = _mm_loadu_si128((__m128i*)(a + i)); // Load 8 elements from row i of A
+            __m128i vec_b = _mm_loadu_si128((__m128i*)(b + i)); // Load 8 elements from column j of B, transposed for continuous access
+            __m128i vec_sum = _mm_add_epi16(vec_a, vec_b);  // Multiply the elements
+            _mm_storeu_si128((__m128i*)(c + i), vec_sum);
+        } else {
+            // Handle the case where n is not a multiple of 8
+            for (uint16_t j = i; j < num_elems; j++) {
+                c[j] = a[j] + b[j]; // Scalar addition for remaining elements
+            }
+            break;
+        }
+    }
+#else
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j++)
             c[i * size + j] = a[i * size + j] + b[i * size + j];
     }
+#endif
 }
-
-
 
 /*
  * Matrix Subtraction
@@ -167,10 +178,28 @@ void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
  * @post Matrix c contains the result of the subtraction of matrix b from matrix a.
  */
 void matrix_sub(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+#if defined(__x86_64__)
+    uint16_t num_elems = size * size;
+    for (uint16_t i = 0; i < num_elems; i += 8) {
+        if (i + 8 <= num_elems) {  // Ensure we do not go out of bounds
+            __m128i vec_a = _mm_loadu_si128((__m128i*)(a + i)); // Load 8 elements from row i of A
+            __m128i vec_b = _mm_loadu_si128((__m128i*)(b + i)); // Load 8 elements from column j of B, transposed for continuous access
+            __m128i vec_sum = _mm_sub_epi16(vec_a, vec_b);  // Multiply the elements
+            _mm_storeu_si128((__m128i*)(c + i), vec_sum);
+        } else {
+            // Handle the case where n is not a multiple of 8
+            for (uint16_t j = i; j < num_elems; j++) {
+                c[j] = a[j] - b[j]; // Scalar addition for remaining elements
+            }
+            break;
+        }
+    }
+#else
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j++)
             c[i * size + j] = a[i * size + j] - b[i * size + j];
     }
+#endif
 }
 
 static const int log_table[64] = {
@@ -211,7 +240,6 @@ static inline uint16_t round_size(uint16_t size) {
     return size;
 }
 
-
 /*
  * Pad Matrix
  *
@@ -244,7 +272,6 @@ void matrix_pad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_co
     }
 }
 
-
 /*
  * Unpad Matrix
  *
@@ -269,6 +296,14 @@ void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_
     for (uint16_t i = 0; i < dest_row; i++) {
         DBG("copying to dest + %hu (%hu * %hu) from src + %hu (%hu * %hu), with the size %hu", dest_col * i, dest_col, i, src_size * i, src_size, i, dest_col);
         memcpy(dest + dest_col * i, src + src_size * i, sizeof(int16_t) * dest_col);
+    }
+}
+
+void matrix_eq(matrix_t a, matrix_t b, int m, int l) {
+    if (memcmp(a, b, sizeof(int16_t) * m * l) == 0) {
+        printf("Function is correct\n");
+    } else {
+        printf("Function is wrong!\n");
     }
 }
 #pragma endregion // utils
@@ -343,7 +378,7 @@ void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
             }
         }
 
-#ifdef DEBUG
+#if defined(DEBUG)
         matrix_print(a11, new_size, new_size);
         matrix_print(a12, new_size, new_size);
         matrix_print(a21, new_size, new_size);
@@ -551,6 +586,8 @@ int main(int argc, char **argv) {
     matrix_multiply(d_matrix, a_matrix, b_matrix, m, n, l);
     printf("D matrix:\n");
     matrix_print(d_matrix, m, l);
+
+    matrix_eq(c_matrix, d_matrix, m, l);
 
     matrix_free(a_matrix);
     matrix_free(b_matrix);
