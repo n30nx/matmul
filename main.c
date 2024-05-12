@@ -98,19 +98,21 @@ void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     }
 }
 
+
+
 /*
  * Print Matrix
  *
- * Bu işlev, belirtilen satır ve sütun sayısına sahip bir matrisi ekrana yazdırır.
+ * This function prints the elements of the matrix to the standard output.
  *
- * @param matrix: Yazdırılacak matris
- * @param row: Matrisin satır sayısı
- * @param col: Matrisin sütun sayısı
+ * @param matrix: Matrix to be printed
+ * @param row: Number of rows in the matrix
+ * @param col: Number of columns in the matrix
  *
- * @pre matrix NULL olmamalıdır.
- * @pre row ve col sıfırdan farklı olmalıdır.
+ * @pre matrix must not be NULL.
+ * @pre row and col should be greater than 0.
  *
- * @post Matris, terminalde yazdırılmalıdır.
+ * @post The elements of the matrix are printed to the standard output.
  */
 void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
@@ -122,6 +124,24 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
     printf("\n\n\n");
 }
 
+
+
+
+/*
+ * Matrix Addition
+ *
+ * This function adds matrix a and matrix b element-wise and stores the result in matrix c.
+ *
+ * @param c: Resultant matrix
+ * @param a: Matrix operand A
+ * @param b: Matrix operand B
+ * @param size: Size of the matrices (number of rows or columns)
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre size should be greater than 0.
+ *
+ * @post Matrix c contains the result of the addition of matrix a and matrix b.
+ */
 void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j++)
@@ -129,6 +149,23 @@ void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
     }
 }
 
+
+
+/*
+ * Matrix Subtraction
+ *
+ * This function subtracts matrix b from matrix a element-wise and stores the result in matrix c.
+ *
+ * @param c: Resultant matrix
+ * @param a: Matrix operand A
+ * @param b: Matrix operand B
+ * @param size: Size of the matrices (number of rows or columns)
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre size should be greater than 0.
+ *
+ * @post Matrix c contains the result of the subtraction of matrix b from matrix a.
+ */
 void matrix_sub(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j++)
@@ -174,6 +211,28 @@ static inline uint16_t round_size(uint16_t size) {
     return size;
 }
 
+
+/*
+ * Pad Matrix
+ *
+ * This function performs padding to resize a matrix to a specified dimension.
+ *
+ * @param dest: Destination address of the padded matrix
+ * @param src: Address of the original matrix to be padded
+ * @param dest_row: Number of rows in the padded matrix
+ * @param dest_col: Number of columns in the padded matrix
+ * @param src_row: Number of rows in the original matrix
+ * @param src_col: Number of columns in the original matrix
+ *
+ * @pre dest and src must not be NULL.
+ * @pre dest_row and dest_col must be non-zero.
+ * @pre src_row and src_col must be non-zero.
+ * @pre The difference between dest_row and src_row should be less than or equal to the difference between src_col and dest_col.
+ * @pre src_col value must be greater than or equal to dest_col value.
+ *
+ * @post The padded matrix should be filled with the data from the original matrix.
+ * @post The empty part of the padded matrix should be filled with zeros.
+ */
 void matrix_pad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
     for (uint16_t i = 0; i < src_row; i++) {
         memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(int16_t));  // Copy original data
@@ -185,6 +244,24 @@ void matrix_pad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_co
     }
 }
 
+
+/*
+ * Unpad Matrix
+ *
+ * This function performs unpadding to resize a matrix to a specified dimension.
+ *
+ * @param dest: Destination address of the unpadded matrix
+ * @param src: Address of the original matrix to be unpadded
+ * @param dest_row: Number of rows in the unpadded matrix
+ * @param dest_col: Number of columns in the unpadded matrix
+ * @param src_size: Size of the original square matrix
+ *
+ * @pre dest and src must not be NULL.
+ * @pre dest_row and dest_col must be non-zero.
+ * @pre src_size must be non-zero.
+ *
+ * @post The unpadded matrix should be filled with the data from the original matrix.
+ */
 void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_col, uint16_t src_size) {
     DBG("dest_start = %p, dest_end = %p, length = %hu", dest, dest + dest_row * dest_col, dest_row * dest_col);
     DBG("src_start = %p, src_end = %p, length = %hu", src, src + src_size * src_size, src_size * src_size);
@@ -204,25 +281,19 @@ void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_
 // TODO: https://en.wikipedia.org/wiki/Strassen_algorithm
 //       
 /*
- * Matrix Multiplication Using AVX2 Intrinsics
+ * Strassen Matrix Multiplication
  *
- * Çarpma işlemi sırasında kullanılan vektör işlemleri AVX2 SIMD (Single Instruction, Multiple Data) komutları kullanılarak gerçekleştirilir.
- * Bu işlev, matris a ve b'nin çarpımını hesaplar ve sonucu matris c'ye yazar.
+ * This function implements the Strassen algorithm for matrix multiplication.
  *
- * @param a: Çarpan matris A
- * @param b: Çarpan matris B
- * @param c: Sonuç matris C
- * @param m: A matrisinin satır sayısı
- * @param n: A matrisinin sütun sayısı ve B matrisinin satır sayısı
- * @param l: B matrisinin sütun sayısı ve C matrisinin sütun sayısı
+ * @param c: Destination matrix for the result of multiplication
+ * @param a: First matrix to be multiplied
+ * @param b: Second matrix to be multiplied
+ * @param size: Size of the matrices (assumed to be a power of 2)
  *
- * @pre a, b ve c NULL olmamalıdır.
- * @pre m, n ve l sıfırdan farklı olmalıdır.
- * @pre A matrisinin sütun sayısı (n) B matrisinin satır sayısına (n) eşit olmalıdır.
- * @pre A matrisinin satır sayısı (m), C matrisinin satır sayısına (m) eşit olmalıdır.
- * @pre B matrisinin sütun sayısı (l), C matrisinin sütun sayısına (l) eşit olmalıdır.
+ * @pre c, a, and b must not be NULL.
+ * @pre size must be a power of 2.
  *
- * @post C matrisi, A ve B matrislerinin çarpımını içermelidir.
+ * @post The destination matrix c will contain the result of multiplying matrices a and b using the Strassen algorithm.
  */
 void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
     if (size == 1) {
@@ -368,6 +439,24 @@ void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
     }
 }
 
+
+/*
+ * Matrix Preparation and Multiplication using Strassen Algorithm
+ *
+ * This function prepares the input matrices by padding them to a suitable size for the Strassen algorithm
+ * and then performs matrix multiplication using the Strassen algorithm.
+ *
+ * @param c: Destination matrix for the result of multiplication
+ * @param a: First matrix to be multiplied
+ * @param b: Second matrix to be multiplied
+ * @param m: Number of rows in matrix a
+ * @param n: Number of columns in matrix a (and number of rows in matrix b)
+ * @param l: Number of columns in matrix b
+ *
+ * @pre c, a, and b must not be NULL.
+ *
+ * @post The destination matrix c will contain the result of multiplying matrices a and b.
+ */
 void matrix_prepare_and_mul(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
     uint16_t new_size = round_size(max(max(m, n), l));
     
@@ -396,25 +485,20 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint
 }
 
 /*
- * Normal Matrix Multiplication
+ * Matrix Multiplication
  *
- * Bu işlev, matris a ve b'nin çarpımını hesaplar ve sonucu matris c'ye yazar.
- * Çarpma işlemi, basit üçlü döngülerle gerçekleştirilir.
+ * This function performs matrix multiplication of matrices a and b and stores the result in matrix c.
  *
- * @param a: Çarpan matris A
- * @param b: Çarpan matris B
- * @param c: Sonuç matris C
- * @param m: A matrisinin satır sayısı
- * @param n: A matrisinin sütun sayısı ve B matrisinin satır sayısı
- * @param l: B matrisinin sütun sayısı ve C matrisinin sütun sayısı
+ * @param c: Destination matrix for the result of multiplication
+ * @param a: First matrix to be multiplied
+ * @param b: Second matrix to be multiplied
+ * @param m: Number of rows in matrix a
+ * @param n: Number of columns in matrix a (and number of rows in matrix b)
+ * @param l: Number of columns in matrix b
  *
- * @pre a, b ve c NULL olmamalıdır.
- * @pre m, n ve l sıfırdan farklı olmalıdır.
- * @pre A matrisinin sütun sayısı (n) B matrisinin satır sayısına (n) eşit olmalıdır.
- * @pre A matrisinin satır sayısı (m), C matrisinin satır sayısına (m) eşit olmalıdır.
- * @pre B matrisinin sütun sayısı (l), C matrisinin sütun sayısına (l) eşit olmalıdır.
+ * @pre c, a, and b must not be NULL.
  *
- * @post C matrisi, A ve B matrislerinin çarpımını içermelidir.
+ * @post The destination matrix c will contain the result of multiplying matrices a and b.
  */
 void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
     memset(c, 0, sizeof(int16_t) * m * l);
