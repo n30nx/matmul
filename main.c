@@ -1,7 +1,7 @@
-#include <immintrin.h> // AVX2 intrinsics
+// #include <immintrin.h> // AVX2 intrinsics
 #include <time.h>
 #include <assert.h>
-#include <malloc.h>
+//#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +44,7 @@ typedef int16_t *matrix_t;
 matrix_t matrix_new(uint16_t row, uint16_t col) {
     matrix_t new = (matrix_t)malloc(sizeof(int16_t) * row * col);
     assert(new);
-    DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
+    //DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
     return new;
 }
 
@@ -196,7 +196,7 @@ void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_
     DBG("dest_row = %hu", dest_row);
     for (uint16_t i = 0; i < dest_row; i++) {
         DBG("copying to dest + %hu (%hu * %hu) from src + %hu (%hu * %hu), with the size %hu", dest_col * i, dest_col, i, src_size * i, src_size, i, dest_col);
-        memcpy(dest + dest_col * i, src + src_size * i, sizeof(int) * dest_col);
+        memcpy(dest + dest_col * i, src + src_size * i, sizeof(int16_t) * dest_col);
     }
 }
 #pragma endregion // utils

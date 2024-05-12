@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -march=native -mavx
+#CFLAGS = -march=native -mavx
 DEBUG = -g -D DEBUG
 OPTIMIZE = -O0
 #LIBS = -lm
