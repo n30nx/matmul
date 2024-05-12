@@ -1,25 +1,34 @@
-// #include <immintrin.h> // AVX2 intrinsics
-#include <time.h>
-#include <assert.h>
-//#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <assert.h>
 #include <limits.h>
+#include <time.h>
 
-#define PARAMS_N 1344
-#define PARAMS_NBAR 8
+#if defined(__APPLE__)
+    #include <malloc/malloc.h>
+    #define malloc_usable_size(x) malloc_size(x)
+#else
+    #include <malloc.h>
+    #if defined(_WIN32)
+        #define malloc_usable_size(x) _msize(x)
+    #endif
+#endif
+
+#ifdef __x86_64__
+    #include <immintrin.h>
+#endif
 
 #ifdef DEBUG
-#define DBG(fmt, ...) do {                                  \
-    fprintf(stdout, "%s:%d ", __FUNCTION__, __LINE__);      \
-    fprintf(stdout, fmt, __VA_ARGS__);                      \
-    fprintf(stdout, "\n");                                  \
-} while (0)
+    #define DBG(fmt, ...) do {                                  \
+        fprintf(stdout, "%s:%d ", __FUNCTION__, __LINE__);      \
+        fprintf(stdout, fmt, __VA_ARGS__);                      \
+        fprintf(stdout, "\n");                                  \
+    } while (0)
 #else
-#define DBG(...)
+    #define DBG(...)
 #endif
 
 #define max(a, b) a > b ? a : b
@@ -44,7 +53,7 @@ typedef int16_t *matrix_t;
 matrix_t matrix_new(uint16_t row, uint16_t col) {
     matrix_t new = (matrix_t)malloc(sizeof(int16_t) * row * col);
     assert(new);
-    //DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
+    DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
     return new;
 }
 
@@ -165,21 +174,7 @@ static inline uint16_t round_size(uint16_t size) {
     return size;
 }
 
-/*
-void matrix_pad(matrix_t src, matrix_t dest, uint16_t src_row, uint16_t src_col, uint16_t dest_row, uint16_t dest_col) {
-    for (uint16_t i = 0; i < src_row; i++) {
-        memcpy(dest, src + (i * src_col), sizeof(int16_t) * src_row);
-        memset(dest + (dest_col * i) + src_col, 0, sizeof(int16_t) * (dest_col - src_col));
-    }
-
-    memset(dest + (src_row * dest_col), 0, sizeof(int16_t) * ((dest_row * dest_col) - (src_row * dest_col)));
-}*/
-
 void matrix_pad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
-    /*for (uint16_t i = 0; i < src_row; i++) {
-        memcpy(dest + (i * dest_col), src + (i * src_col), src_col * sizeof(int16_t));
-    }*/
-
     for (uint16_t i = 0; i < src_row; i++) {
         memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(int16_t));  // Copy original data
         memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
@@ -277,6 +272,7 @@ void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
             }
         }
 
+#ifdef DEBUG
         matrix_print(a11, new_size, new_size);
         matrix_print(a12, new_size, new_size);
         matrix_print(a21, new_size, new_size);
@@ -286,6 +282,7 @@ void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
         matrix_print(b12, new_size, new_size);
         matrix_print(b21, new_size, new_size);
         matrix_print(b22, new_size, new_size);
+#endif
 
         // p1 = a11 * (b12 - b22)
         matrix_sub(tmp_b, b12, b22, new_size);
@@ -420,6 +417,8 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint
  * @post C matrisi, A ve B matrislerinin çarpımını içermelidir.
  */
 void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
+    memset(c, 0, sizeof(int16_t) * m * l);
+
     for (uint16_t i = 0; i < m; i++) {
         for (uint16_t j = 0; j < l; j++) {
             for (uint16_t k = 0; k < n; k++) {
