@@ -51,7 +51,11 @@ typedef int16_t *matrix_t;
  * @post Matris belleği dinamik olarak tahsis edilmelidir.
  */
 matrix_t matrix_new(uint16_t row, uint16_t col) {
+#if defined(__x86_64__)
+    matrix_t new = (matrix_t)_mm_malloc(sizeof(int16_t) * row * col, 32);
+#else
     matrix_t new = (matrix_t)malloc(sizeof(int16_t) * row * col);
+#endif
     assert(new);
     DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
     return new;
@@ -71,7 +75,11 @@ matrix_t matrix_new(uint16_t row, uint16_t col) {
  * @post Matrisin belleği serbest bırakılmalıdır.
  */
 void matrix_free(matrix_t matrix) {
+#if defined(__x86_64__)
+    _mm_free(matrix);
+#else
     free(matrix);
+#endif
 }
 #pragma endregion // mem
 
@@ -138,26 +146,25 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
  * @post Matrix c contains the result of the addition of matrix a and matrix b.
  */
 void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+    uint32_t num_elements = size * size;
 #if defined(__x86_64__)
-    uint16_t num_elems = size * size;
-    for (uint16_t i = 0; i < num_elems; i += 8) {
-        if (i + 8 <= num_elems) {  // Ensure we do not go out of bounds
-            __m128i vec_a = _mm_loadu_si128((__m128i*)(a + i)); // Load 8 elements from row i of A
-            __m128i vec_b = _mm_loadu_si128((__m128i*)(b + i)); // Load 8 elements from column j of B, transposed for continuous access
-            __m128i vec_sum = _mm_add_epi16(vec_a, vec_b);  // Multiply the elements
-            _mm_storeu_si128((__m128i*)(c + i), vec_sum);
+    for (uint32_t i = 0; i < num_elements; i += 8) {
+        if (i + 8 <= num_elements) {  // ensure we do not go out of bounds
+            __m128i vec_a = _mm_loadu_si128((__m128i*)&a[i]);  // load 8 elements from a
+            __m128i vec_b = _mm_loadu_si128((__m128i*)&b[i]);  // load 8 elements from b
+            __m128i vec_sum = _mm_add_epi16(vec_a, vec_b);     // add the elements
+            _mm_storeu_si128((__m128i*)&c[i], vec_sum);        // store the result in c
         } else {
-            // Handle the case where n is not a multiple of 8
-            for (uint16_t j = i; j < num_elems; j++) {
-                c[j] = a[j] + b[j]; // Scalar addition for remaining elements
+            // handle the case where remaining elements are less than 8
+            for (uint32_t j = i; j < num_elements; j++) {
+                c[j] = a[j] + b[j]; // scalar addition for remaining elements
             }
-            break;
+            break; // exit the loop after handling remaining elements
         }
     }
 #else
-    for (uint16_t i = 0; i < size; i++) {
-        for (uint16_t j = 0; j < size; j++)
-            c[i * size + j] = a[i * size + j] + b[i * size + j];
+    for (uint32_t i = 0; i < num_elems; i++) {
+        c[i] = a[i] + b[i];
     }
 #endif
 }
@@ -178,26 +185,25 @@ void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
  * @post Matrix c contains the result of the subtraction of matrix b from matrix a.
  */
 void matrix_sub(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+    uint32_t num_elements = size * size;
 #if defined(__x86_64__)
-    uint16_t num_elems = size * size;
-    for (uint16_t i = 0; i < num_elems; i += 8) {
-        if (i + 8 <= num_elems) {  // Ensure we do not go out of bounds
-            __m128i vec_a = _mm_loadu_si128((__m128i*)(a + i)); // Load 8 elements from row i of A
-            __m128i vec_b = _mm_loadu_si128((__m128i*)(b + i)); // Load 8 elements from column j of B, transposed for continuous access
-            __m128i vec_sum = _mm_sub_epi16(vec_a, vec_b);  // Multiply the elements
-            _mm_storeu_si128((__m128i*)(c + i), vec_sum);
+    for (uint32_t i = 0; i < num_elements; i += 8) {
+        if (i + 8 <= num_elements) {  // ensure we do not go out of bounds
+            __m128i vec_a = _mm_loadu_si128((__m128i*)&a[i]);  // load 8 elements from a
+            __m128i vec_b = _mm_loadu_si128((__m128i*)&b[i]);  // load 8 elements from b
+            __m128i vec_sum = _mm_sub_epi16(vec_a, vec_b);     // add the elements
+            _mm_storeu_si128((__m128i*)&c[i], vec_sum);        // store the result in c
         } else {
-            // Handle the case where n is not a multiple of 8
-            for (uint16_t j = i; j < num_elems; j++) {
-                c[j] = a[j] - b[j]; // Scalar addition for remaining elements
+            // handle the case where remaining elements are less than 8
+            for (uint32_t j = i; j < num_elements; j++) {
+                c[j] = a[j] - b[j]; // scalar addition for remaining elements
             }
-            break;
+            break; // exit the loop after handling remaining elements
         }
     }
 #else
-    for (uint16_t i = 0; i < size; i++) {
-        for (uint16_t j = 0; j < size; j++)
-            c[i * size + j] = a[i * size + j] - b[i * size + j];
+    for (uint32_t i = 0; i < num_elems; i++) {
+        c[i] = a[i] - b[i];
     }
 #endif
 }
@@ -299,12 +305,14 @@ void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_
     }
 }
 
-void matrix_eq(matrix_t a, matrix_t b, int m, int l) {
-    if (memcmp(a, b, sizeof(int16_t) * m * l) == 0) {
-        printf("Function is correct\n");
-    } else {
-        printf("Function is wrong!\n");
+void matrix_eq(matrix_t a, matrix_t b, uint16_t m, uint16_t l) {
+    for (uint32_t i = 0; i < m * l; i++) {
+        if (a[i] != b[i]) {
+            printf("Function is wrong!\n");
+            return;
+        }
     }
+    printf("Function is correct!\n");
 }
 #pragma endregion // utils
 
@@ -330,7 +338,10 @@ void matrix_eq(matrix_t a, matrix_t b, int m, int l) {
  *
  * @post The destination matrix c will contain the result of multiplying matrices a and b using the Strassen algorithm.
  */
+uint64_t recursion_count = 0;
 void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+    ++recursion_count;
+    printf("%lu\r", recursion_count);
     if (size == 1) {
         c[0] = a[0] * b[0];
     } else {
@@ -594,5 +605,5 @@ int main(int argc, char **argv) {
     matrix_free(c_matrix);
     matrix_free(d_matrix);
 
-    return 0;   
+    return 0;
 }
