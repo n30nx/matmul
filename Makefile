@@ -2,7 +2,7 @@ CC = gcc
 INTRINSICS = -mavx
 CFLAGS = -march=native
 DEBUG = -g -D DEBUG
-OPTIMIZE = -O3
+OPTIMIZE = -O3 -funroll-loops
 WARN = -Wall -Wextra -Werror
 SRC = main.c
 OUT = -o main
