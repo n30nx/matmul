@@ -3,7 +3,8 @@ INTRINSICS = -mavx
 CFLAGS = -march=native
 DEBUG = -g -D DEBUG
 OPTIMIZE = -O3 -funroll-loops
-WARN = -Wall -Wextra -Werror
+WARN = -Wall -Wextra
+SEQ = -D SEQUENTIAL
 SRC = main.c
 OUT = -o main
 ASAN = -fsanitize=address,undefined
@@ -19,6 +20,9 @@ build:
 
 debug:
 	$(BASE) $(DEBUG)
+
+seq:
+	$(BASE) $(SEQ)
 
 asan:
 	$(BASE) $(DEBUG) $(ASAN)
