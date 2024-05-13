@@ -402,7 +402,7 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
     //printf("%lu\r", recursion_count);
     if (size == 1) {
        c[0] = a[0] * b[0];
-    } else if (size == 32) {
+    } else if (size == 16) {
        matrix_multiply(c, a, b, size, size, size); 
     } else {
         uint16_t new_size = size / 2;
@@ -574,10 +574,10 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
     matrix_pad(padded_a, a, new_size, new_size, m, n);
     matrix_pad(padded_b, b, new_size, new_size, n, l);
 
-    printf("matrix a:\n");
-    matrix_print(padded_a, new_size, new_size);
-    printf("matrix b:\n");
-    matrix_print(padded_b, new_size, new_size);
+    // printf("matrix a:\n");
+    // matrix_print(padded_a, new_size, new_size);
+    // printf("matrix b:\n");
+    // matrix_print(padded_b, new_size, new_size);
 
     strassen(padded_result, padded_a, padded_b, new_size);
 
@@ -632,7 +632,7 @@ int main(int argc, char **argv) {
     //printf("A matrix:\n");
     //matrix_print(a_matrix, m, n);
     
-    matrix_assign_random(b_matrix, n, l);
+    //matrix_assign_random(b_matrix, n, l);
     /*for (uint16_t i = 0; i < n * l; i++) {
         b_matrix[i] = i + 2;
     }*/
@@ -640,8 +640,9 @@ int main(int argc, char **argv) {
     //matrix_print(b_matrix, n, l);
 
     matrix_prepare_and_mul(c_matrix, a_matrix, b_matrix, m, n, l);
-    printf("C matrix:\n");
-    matrix_print(c_matrix, m, l);
+    
+    //printf("C matrix:\n");
+    //matrix_print(c_matrix, m, l);
 
     //matrix_multiply(d_matrix, a_matrix, b_matrix, m, n, l);
     //printf("D matrix:\n");
