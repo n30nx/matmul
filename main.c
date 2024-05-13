@@ -125,14 +125,14 @@ static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t 
  * @post The elements of the matrix are printed to the standard output.
  */
 __attribute__((always_inline))
-static inline void matrix_print(matrix_t __restrict matrix, uint16_t row, uint16_t col) {
+static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
-            printf("%hd ", matrix[i * col + j]);
+            fprintf(stream, "%hd ", matrix[i * col + j]);
         }
-        printf("\n");
+        fprintf(stream, "\n");
     }
-    printf("\n\n\n");
+    fprintf(stream, "\n\n\n");
 }
 
 /*
@@ -335,7 +335,7 @@ static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t
     }
 }
 
-__attribute__((always_inline))
+__attribute__((always_inline, unused))
 static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t l) {
     for (uint32_t i = 0; i < m * l; i++) {
         if (a[i] != b[i]) {
@@ -475,15 +475,15 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
         }
 
 #if defined(DEBUG)
-        matrix_print(a11, new_size, new_size);
-        matrix_print(a12, new_size, new_size);
-        matrix_print(a21, new_size, new_size);
-        matrix_print(a22, new_size, new_size);
+        matrix_print(stdout, a11, new_size, new_size);
+        matrix_print(stdout, a12, new_size, new_size);
+        matrix_print(stdout, a21, new_size, new_size);
+        matrix_print(stdout, a22, new_size, new_size);
         
-        matrix_print(b11, new_size, new_size);
-        matrix_print(b12, new_size, new_size);
-        matrix_print(b21, new_size, new_size);
-        matrix_print(b22, new_size, new_size);
+        matrix_print(stdout, b11, new_size, new_size);
+        matrix_print(stdout, b12, new_size, new_size);
+        matrix_print(stdout, b21, new_size, new_size);
+        matrix_print(stdout, b22, new_size, new_size);
 #endif
 
         // p1 = a11 * (b12 - b22)
@@ -590,24 +590,17 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
     uint16_t new_size = round_size(max(max(m, n), l));
     new_size = new_size < 512 ? 512 : new_size;
+    DBG("new_size: %hu", new_size);
 
     matrix_t padded_a = matrix_new(new_size, new_size);
     matrix_t padded_b = matrix_new(new_size, new_size);
     matrix_t padded_result = matrix_new(new_size, new_size);
 
-    //printf("%hu\n", new_size);
-
     // Pad the matrix for the strassen algorithm to be able to divide them into equal 2^n lengthed parts
     matrix_pad(padded_a, a, new_size, new_size, m, n);
     matrix_pad(padded_b, b, new_size, new_size, n, l);
 
-    // printf("matrix a:\n");
-    // matrix_print(padded_a, new_size, new_size);
-    // printf("matrix b:\n");
-    // matrix_print(padded_b, new_size, new_size);
-
     strassen(padded_result, padded_a, padded_b, new_size);
-    // matrix_print(padded_result, new_size, new_size);
 
     // Free the padded variables as they won't be necessary anymore
     matrix_free(padded_a);
@@ -647,23 +640,12 @@ int main(int argc, char **argv) {
     matrix_assign_random(a_matrix, m, n);
     matrix_assign_random(b_matrix, n, l);
 #endif    
-    //printf("A matrix:\n");
-    //matrix_print(a_matrix, m, n);
-    
-    //printf("B matrix:\n");
-    //matrix_print(b_matrix, n, l);
-
     matrix_prepare_and_mul(c_matrix, a_matrix, b_matrix, m, n, l);
     
-    //printf("C matrix:\n");
-    //matrix_print(c_matrix, m, l);
+    FILE *matrix_out = fopen("matrix_output_main.txt", "w");
+    matrix_print(matrix_out, c_matrix, m, l);
+    fclose(matrix_out);
 
-    //matrix_multiply(d_matrix, a_matrix, b_matrix, m, n, l);
-    //printf("D matrix:\n");
-    //matrix_print(d_matrix, m, l);
-
-    //matrix_eq(c_matrix, d_matrix, m, l);
-    
     matrix_free(a_matrix);
     matrix_free(b_matrix);
     matrix_free(c_matrix);
