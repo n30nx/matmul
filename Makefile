@@ -10,7 +10,7 @@ ASAN = -fsanitize=address,undefined
 
 BASE = $(CC) $(OPTIMIZE) $(WARN) $(OUT) $(CFLAGS) $(SRC)
 
-ifeq ($(PLATFORM),x86_64)
+ifeq ($(shell uname -m),x86_64)
   BASE += $(INTRINSICS)
 endif
 
