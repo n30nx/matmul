@@ -274,14 +274,36 @@ static inline uint16_t round_size(uint16_t size) {
  * @post The empty part of the padded matrix should be filled with zeros.
  */
 void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
+#if defined(__x86_64__)
+    __m256i zero = _mm256_setzero_si256();
+    for (uint16_t i = 0; i < dest_row; i++) {
+        for (uint16_t j = 0; j < dest_col; j += 16) {  // Assuming int16_t, 16 values per 256-bit register
+            _mm256_store_si256((__m256i*)(dest + i * dest_col + j), zero);
+        }
+    }
+
+    // Now copy src to dest, taking care of possible misalignment
+    for (uint16_t i = 0; i < src_row; i++) {
+        uint16_t j = 0;
+        for (; j < src_col - 15; j += 16) {  // copy in blocks of 16, assuming src_col is large enough
+            __m256i data = _mm256_loadu_si256((__m256i*)(src + i * src_col + j));
+            _mm256_storeu_si256((__m256i*)(dest + i * dest_col + j), data);
+        }
+        for (; j < src_col; j++) {  // handle remaining elements if any
+            dest[i * dest_col + j] = src[i * src_col + j];
+        }
+    }
+#else
+    memset(dest, 0, dest_row * dest_col * sizeof(int16_t));
     for (uint16_t i = 0; i < src_row; i++) {
         memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(int16_t));  // Copy original data
-        memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
+    //    memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
     }
     // Pad remaining rows with zeros
-    for (int16_t i = src_row; i < dest_row; i++) {
+    /*for (int16_t i = src_row; i < dest_row; i++) {
         memset(dest + (dest_col * i), 0, dest_col * sizeof(int16_t));
-    }
+    }*/
+#endif
 }
 
 /*
@@ -565,10 +587,13 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
  */
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
     uint16_t new_size = round_size(max(max(m, n), l));
-    
+    new_size = new_size < 16 ? 16 : new_size;
+
     matrix_t padded_a = matrix_new(new_size, new_size);
     matrix_t padded_b = matrix_new(new_size, new_size);
     matrix_t padded_result = matrix_new(new_size, new_size);
+
+    //printf("%hu\n", new_size);
 
     // Pad the matrix for the strassen algorithm to be able to divide them into equal 2^n lengthed parts
     matrix_pad(padded_a, a, new_size, new_size, m, n);
@@ -632,7 +657,7 @@ int main(int argc, char **argv) {
     //printf("A matrix:\n");
     //matrix_print(a_matrix, m, n);
     
-    //matrix_assign_random(b_matrix, n, l);
+    matrix_assign_random(b_matrix, n, l);
     /*for (uint16_t i = 0; i < n * l; i++) {
         b_matrix[i] = i + 2;
     }*/
