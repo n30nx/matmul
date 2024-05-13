@@ -356,21 +356,30 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
     __m256i b_vec, acc_vec;
     for (uint16_t j = 0; j < m; j++) {
         for (uint16_t q = 0; q < l; q += 16) {
-            acc_vec = _mm256_setzero_si256(); // Initialize acc_vec to zero
+            acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
 
-            for (uint16_t p = 0; p < n; p += 8) { // Assuming n is a multiple of 8
+            for (uint16_t p = 0; p < n; p += 8) {  // Assuming n is a multiple of 8
                 __m256i sp_vec[8];
                 for (int k = 0; k < 8; k++) {
-                    sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]); // Broadcast elements from 'a'
+                    sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]);  // Broadcast elements from 'a'
                 }
 
                 for (int k = 0; k < 8; k++) {
-                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q)); // Load 16 elements from 'b'
-                    acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec)); // Multiply and accumulate
+                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q));  // Load 16 elements from 'b'
+                    acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
                 }
             }
 
-            _mm256_store_si256((__m256i*)(c + j * l + q), acc_vec); // Store the result back to 'c'
+            if (q + 16 <= l) {
+                _mm256_store_si256((__m256i*)(c + j * l + q), acc_vec);  // Store the result back to 'c'
+            } else {
+                // Handle remaining columns that do not fill a full SIMD register width
+                int16_t temp[16];
+                _mm256_storeu_si256((__m256i*)temp, acc_vec);
+                for (int r = 0; r < l % 16; r++) {
+                    c[j * l + q + r] = temp[r];
+                }
+            }
         }
     }
 #else
@@ -418,10 +427,8 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
  * @post The destination matrix c will contain the result of multiplying matrices a and b using the Strassen algorithm.
  */
 static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
-    //++recursion_count;
-    //printf("%lu\r", recursion_count);
     if (size <= 512) {
-       matrix_multiply(c, a, b, size, size, size); 
+        matrix_multiply(c, a, b, size, size, size);
     } else {
         uint16_t new_size = size / 2;
 
@@ -582,7 +589,7 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
  */
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
     uint16_t new_size = round_size(max(max(m, n), l));
-    new_size = new_size < 256 ? 256 : new_size;
+    new_size = new_size < 512 ? 512 : new_size;
 
     matrix_t padded_a = matrix_new(new_size, new_size);
     matrix_t padded_b = matrix_new(new_size, new_size);
