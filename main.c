@@ -53,7 +53,7 @@ typedef int16_t *matrix_t;
 __attribute__((always_inline))
 static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
 #if defined(__x86_64__)
-    matrix_t new = (matrix_t)_mm_malloc(sizeof(int16_t) * row * col, 64);
+    matrix_t new = (matrix_t)_mm_malloc(sizeof(int16_t) * row * col, 32);
 #else
     matrix_t new = (matrix_t)malloc(sizeof(int16_t) * row * col);
 #endif
