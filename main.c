@@ -50,9 +50,10 @@ typedef int16_t *matrix_t;
  * @post Oluşturulan matris, her bir elemanı sıfır olan bir matris olmalıdır.
  * @post Matris belleği dinamik olarak tahsis edilmelidir.
  */
-matrix_t matrix_new(uint16_t row, uint16_t col) {
+__attribute__((always_inline))
+static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
 #if defined(__x86_64__)
-    matrix_t new = (matrix_t)_mm_malloc(sizeof(int16_t) * row * col, 32);
+    matrix_t new = (matrix_t)_mm_malloc(sizeof(int16_t) * row * col, 64);
 #else
     matrix_t new = (matrix_t)malloc(sizeof(int16_t) * row * col);
 #endif
@@ -74,7 +75,8 @@ matrix_t matrix_new(uint16_t row, uint16_t col) {
  *
  * @post Matrisin belleği serbest bırakılmalıdır.
  */
-void matrix_free(matrix_t matrix) {
+__attribute__((always_inline))
+static inline void matrix_free(matrix_t matrix) {
 #if defined(__x86_64__)
     _mm_free(matrix);
 #else
@@ -98,7 +100,8 @@ void matrix_free(matrix_t matrix) {
  *
  * @post Matris, her bir elemanı 0 ile INT16_MAX (hariç) arasında rastgele bir tam sayı ile doldurulmalıdır.
  */
-void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
+__attribute__((always_inline))
+static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
             matrix[i * col + j] = rand() % INT16_MAX;
@@ -120,7 +123,8 @@ void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
  *
  * @post The elements of the matrix are printed to the standard output.
  */
-void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
+__attribute__((always_inline))
+static inline void matrix_print(matrix_t __restrict matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
             printf("%hd ", matrix[i * col + j]);
@@ -145,15 +149,16 @@ void matrix_print(matrix_t matrix, uint16_t row, uint16_t col) {
  *
  * @post Matrix c contains the result of the addition of matrix a and matrix b.
  */
-void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+__attribute__((always_inline))
+static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
     uint32_t num_elements = size * size;
 #if defined(__x86_64__)
-    for (uint32_t i = 0; i < num_elements; i += 8) {
-        if (i + 8 <= num_elements) {  // ensure we do not go out of bounds
-            __m128i vec_a = _mm_loadu_si128((__m128i*)&a[i]);  // load 8 elements from a
-            __m128i vec_b = _mm_loadu_si128((__m128i*)&b[i]);  // load 8 elements from b
-            __m128i vec_sum = _mm_add_epi16(vec_a, vec_b);     // add the elements
-            _mm_storeu_si128((__m128i*)&c[i], vec_sum);        // store the result in c
+    for (uint32_t i = 0; i < num_elements; i += 16) {
+        if (i + 16 <= num_elements) {  // ensure we do not go out of bounds
+            __m256i vec_a = _mm256_load_si256((__m256i*)&a[i]);  // load 8 elements from a
+            __m256i vec_b = _mm256_load_si256((__m256i*)&b[i]);  // load 8 elements from b
+            __m256i vec_sum = _mm256_add_epi16(vec_a, vec_b);     // add the elements
+            _mm256_store_si256((__m256i*)&c[i], vec_sum);        // store the result in c
         } else {
             // handle the case where remaining elements are less than 8
             for (uint32_t j = i; j < num_elements; j++) {
@@ -184,15 +189,16 @@ void matrix_add(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
  *
  * @post Matrix c contains the result of the subtraction of matrix b from matrix a.
  */
-void matrix_sub(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
+__attribute__((always_inline))
+static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
     uint32_t num_elements = size * size;
 #if defined(__x86_64__)
-    for (uint32_t i = 0; i < num_elements; i += 8) {
-        if (i + 8 <= num_elements) {  // ensure we do not go out of bounds
-            __m128i vec_a = _mm_loadu_si128((__m128i*)&a[i]);  // load 8 elements from a
-            __m128i vec_b = _mm_loadu_si128((__m128i*)&b[i]);  // load 8 elements from b
-            __m128i vec_sum = _mm_sub_epi16(vec_a, vec_b);     // add the elements
-            _mm_storeu_si128((__m128i*)&c[i], vec_sum);        // store the result in c
+    for (uint32_t i = 0; i < num_elements; i += 16) {
+        if (i + 16 <= num_elements) {  // ensure we do not go out of bounds
+            __m256i vec_a = _mm256_load_si256((__m256i*)&a[i]);  // load 8 elements from a
+            __m256i vec_b = _mm256_load_si256((__m256i*)&b[i]);  // load 8 elements from b
+            __m256i vec_sum = _mm256_sub_epi16(vec_a, vec_b);     // add the elements
+            _mm256_store_si256((__m256i*)&c[i], vec_sum);        // store the result in c
         } else {
             // handle the case where remaining elements are less than 8
             for (uint32_t j = i; j < num_elements; j++) {
@@ -267,7 +273,7 @@ static inline uint16_t round_size(uint16_t size) {
  * @post The padded matrix should be filled with the data from the original matrix.
  * @post The empty part of the padded matrix should be filled with zeros.
  */
-void matrix_pad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
+void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
     for (uint16_t i = 0; i < src_row; i++) {
         memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(int16_t));  // Copy original data
         memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
@@ -295,7 +301,8 @@ void matrix_pad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_co
  *
  * @post The unpadded matrix should be filled with the data from the original matrix.
  */
-void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_col, uint16_t src_size) {
+__attribute__((always_inline))
+static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_size) {
     DBG("dest_start = %p, dest_end = %p, length = %hu", dest, dest + dest_row * dest_col, dest_row * dest_col);
     DBG("src_start = %p, src_end = %p, length = %hu", src, src + src_size * src_size, src_size * src_size);
     DBG("dest_row = %hu", dest_row);
@@ -305,7 +312,8 @@ void matrix_unpad(matrix_t dest, matrix_t src, uint16_t dest_row, uint16_t dest_
     }
 }
 
-void matrix_eq(matrix_t a, matrix_t b, uint16_t m, uint16_t l) {
+__attribute__((always_inline))
+static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t l) {
     for (uint32_t i = 0; i < m * l; i++) {
         if (a[i] != b[i]) {
             printf("Function is wrong!\n");
@@ -320,6 +328,56 @@ void matrix_eq(matrix_t a, matrix_t b, uint16_t m, uint16_t l) {
 // TODO: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
 //
+/*void matrix_multiply(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
+    // Initialize the result matrix to zero
+    memset(c, 0, sizeof(int16_t) * m * l);
+
+    for (uint16_t i = 0; i < m; i++) {
+        for (uint16_t k = 0; k < n; k++) {
+            // Broadcast a single element of A across the entire 256-bit register
+            __m256i a_element = _mm256_set1_epi16(a[i * n + k]);
+
+            for (uint16_t j = 0; j < l; j += 16) {  // Process 16 elements of B at a time
+                // Load 16 elements of B
+                __m256i b_elements = _mm256_load_si256((__m256i *)(b + k * l + j));
+                // Load 16 elements of C to accumulate the result
+                __m256i c_elements = _mm256_load_si256((__m256i *)(c + i * l + j));
+
+                // Perform element-wise multiplication and add to the accumulator
+                c_elements = _mm256_add_epi16(c_elements, _mm256_mullo_epi16(a_element, b_elements));
+
+                // Store the result back to C
+                _mm256_store_si256((__m256i *)(c + i * l + j), c_elements);
+            }
+        }
+    }
+}*/
+
+void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
+    // Assuming m corresponds to PARAMS_NBAR and n corresponds to PARAMS_N in the given context
+    __m256i b_vec, acc_vec;
+    for (uint16_t j = 0; j < m; j++) {
+        for (uint16_t q = 0; q < l; q += 16) { // Assuming l is a multiple of 16
+            acc_vec = _mm256_load_si256((__m256i*)(c + j * l + q)); // Load 16 elements from c (matrix 'e' in the original snippet)
+
+            for (uint16_t p = 0; p < n; p += 8) { // Assuming n is a multiple of 8 and we use 8 for step in 'p'
+                __m256i sp_vec[8];
+                for (int k = 0; k < 8; k++) {
+                    sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]); // Broadcast elements from 'a'
+                }
+
+                for (int k = 0; k < 8; k++) {
+                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q)); // Load 16 elements from 'b'
+                    acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec)); // Multiply and accumulate
+                }
+            }
+
+            _mm256_store_si256((__m256i*)(c + j * l + q), acc_vec); // Store the result back to 'c'
+        }
+    }
+}
+
+
 // Strassen Algorithm
 // TODO: https://en.wikipedia.org/wiki/Strassen_algorithm
 //       
@@ -338,12 +396,14 @@ void matrix_eq(matrix_t a, matrix_t b, uint16_t m, uint16_t l) {
  *
  * @post The destination matrix c will contain the result of multiplying matrices a and b using the Strassen algorithm.
  */
-uint64_t recursion_count = 0;
-void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
-    ++recursion_count;
-    printf("%lu\r", recursion_count);
+//uint64_t recursion_count = 0;
+static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
+    //++recursion_count;
+    //printf("%lu\r", recursion_count);
     if (size == 1) {
-        c[0] = a[0] * b[0];
+       c[0] = a[0] * b[0];
+    } else if (size == 32) {
+       matrix_multiply(c, a, b, size, size, size); 
     } else {
         uint16_t new_size = size / 2;
 
@@ -503,7 +563,7 @@ void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size) {
  *
  * @post The destination matrix c will contain the result of multiplying matrices a and b.
  */
-void matrix_prepare_and_mul(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
+void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
     uint16_t new_size = round_size(max(max(m, n), l));
     
     matrix_t padded_a = matrix_new(new_size, new_size);
@@ -546,17 +606,6 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint
  *
  * @post The destination matrix c will contain the result of multiplying matrices a and b.
  */
-void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
-    memset(c, 0, sizeof(int16_t) * m * l);
-
-    for (uint16_t i = 0; i < m; i++) {
-        for (uint16_t j = 0; j < l; j++) {
-            for (uint16_t k = 0; k < n; k++) {
-                c[i * l + j] += a[i * n + k] * b[k * l + j];
-            }
-        }
-    }
-}
 
 int main(int argc, char **argv) {
     uint16_t m, n, l;
@@ -576,29 +625,29 @@ int main(int argc, char **argv) {
 
     srand(time(NULL));
 
-    //matrix_assign_random(a_matrix, m, n);
-    for (uint16_t i = 0; i < m * n; i++) {
+    matrix_assign_random(a_matrix, m, n);
+    /*for (uint16_t i = 0; i < m * n; i++) {
         a_matrix[i] = i + 1;
-    }
-    printf("A matrix:\n");
-    matrix_print(a_matrix, m, n);
+    }*/
+    //printf("A matrix:\n");
+    //matrix_print(a_matrix, m, n);
     
-    //matrix_assign_random(b_matrix, n, l);
-    for (uint16_t i = 0; i < n * l; i++) {
+    matrix_assign_random(b_matrix, n, l);
+    /*for (uint16_t i = 0; i < n * l; i++) {
         b_matrix[i] = i + 2;
-    }
-    printf("B matrix:\n");
-    matrix_print(b_matrix, n, l);
+    }*/
+    //printf("B matrix:\n");
+    //matrix_print(b_matrix, n, l);
 
     matrix_prepare_and_mul(c_matrix, a_matrix, b_matrix, m, n, l);
     printf("C matrix:\n");
     matrix_print(c_matrix, m, l);
 
-    matrix_multiply(d_matrix, a_matrix, b_matrix, m, n, l);
-    printf("D matrix:\n");
-    matrix_print(d_matrix, m, l);
+    //matrix_multiply(d_matrix, a_matrix, b_matrix, m, n, l);
+    //printf("D matrix:\n");
+    //matrix_print(d_matrix, m, l);
 
-    matrix_eq(c_matrix, d_matrix, m, l);
+    //matrix_eq(c_matrix, d_matrix, m, l);
 
     matrix_free(a_matrix);
     matrix_free(b_matrix);
