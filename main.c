@@ -264,7 +264,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
                 _mm256_store_si256((__m256i*)(c + j * l + q), acc_vec);  // Store the result back to 'c'
             } else {
                 // Handle remaining columns that do not fill a full SIMD register width
-                int16_t temp[16];
+                uint16_t temp[16];
                 _mm256_storeu_si256((__m256i*)temp, acc_vec);
                 for (uint16_t r = 0; r < l % 16; r++) {
                     c[j * l + q + r] = temp[r];
