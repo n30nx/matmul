@@ -25,4 +25,7 @@ debug:
 	$(BASE) $(SEQ) $(DEBUG)
 
 asan:
+	$(BASE) $(SEQ) $(ASAN)
+
+asandbg:
 	$(BASE) $(SEQ) $(DEBUG) $(ASAN)
