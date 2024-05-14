@@ -20,6 +20,8 @@
 
 #if defined(__x86_64__)
     #include <immintrin.h>
+#elif defined(__ARM_NEON__)
+    #include <arm_neon.h>
 #endif
 //
 
@@ -45,32 +47,6 @@
  * 2- I'd like to think the elements of the matrix \every M_{i} \in Z/2^16Z
  */
 typedef uint16_t *matrix_t;
-
-#pragma region mem
-
-__attribute__((always_inline))
-static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
-#if defined(__x86_64__)
-    matrix_t new = (matrix_t)_mm_malloc(sizeof(uint16_t) * row * col, 64);
-#else
-    matrix_t new = (matrix_t)malloc(sizeof(uint16_t) * row * col);
-#endif
-    assert(new);
-    DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
-    return new;
-}
-
-__attribute__((always_inline))
-static inline void matrix_free(matrix_t matrix) {
-#if defined(__x86_64__)
-    _mm_free(matrix);
-#else
-    free(matrix);
-#endif
-}
-#pragma endregion // mem
-
-#pragma region utils
 
 static const int log_table[64] = {
     63,  0, 58,  1, 59, 47, 53,  2,
@@ -110,6 +86,37 @@ static inline uint16_t round_size(uint16_t size) {
 
     return size;
 }
+
+#pragma region mem
+
+__attribute__((always_inline))
+static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
+#if defined(__x86_64__)
+    matrix_t new = (matrix_t)_mm_malloc(sizeof(uint16_t) * row * col, 64);
+#elif defined(__ARM_NEON__)
+    uint16_t size = sizeof(uint16_t) * row * col;
+    size = round_size(size);
+    size = size < 64 ? 64 : size;
+    matrix_t new = aligned_alloc(64, size);
+#else
+    matrix_t new = (matrix_t)malloc(sizeof(uint16_t) * row * col);
+#endif
+    assert(new);
+    DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
+    return new;
+}
+
+__attribute__((always_inline))
+static inline void matrix_free(matrix_t matrix) {
+#if defined(__x86_64__)
+    _mm_free(matrix);
+#else
+    free(matrix);
+#endif
+}
+#pragma endregion // mem
+
+#pragma region utils
 
 __attribute__((always_inline))
 static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
