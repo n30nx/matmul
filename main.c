@@ -152,7 +152,7 @@ static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uin
         }
     }
 #else
-    for (uint32_t i = 0; i < num_elems; i++) {
+    for (uint32_t i = 0; i < num_elements; i++) {
         c[i] = a[i] + b[i]; // Normal matrix addition
     }
 #endif
@@ -177,7 +177,7 @@ static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uin
         }
     }
 #else
-    for (uint32_t i = 0; i < num_elems; i++) {
+    for (uint32_t i = 0; i < num_elements; i++) {
         c[i] = a[i] - b[i]; // Normal matrix subraction
     }
 #endif
@@ -240,6 +240,7 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 // FrodoKEM Matrix Multiplication
 // REFS: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
+// TODO: try _mm_prefetch
 void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
