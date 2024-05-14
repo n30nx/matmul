@@ -87,6 +87,7 @@ static inline void matrix_free(matrix_t matrix) {
 #pragma endregion // mem
 
 #pragma region utils
+
 /*
  * Assign Random Values to Matrix
  *
@@ -156,10 +157,10 @@ static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uin
 #if defined(__x86_64__)
     for (uint32_t i = 0; i < num_elements; i += 16) {
         if (i + 16 <= num_elements) {  // ensure we do not go out of bounds
-            __m256i vec_a = _mm256_load_si256((__m256i*)&a[i]);  // load 8 elements from a
-            __m256i vec_b = _mm256_load_si256((__m256i*)&b[i]);  // load 8 elements from b
+            __m256i vec_a = _mm256_load_si256((__m256i*)(a + i));  // load 8 elements from a
+            __m256i vec_b = _mm256_load_si256((__m256i*)(b + i));  // load 8 elements from b
             __m256i vec_sum = _mm256_add_epi16(vec_a, vec_b);     // add the elements
-            _mm256_store_si256((__m256i*)&c[i], vec_sum);        // store the result in c
+            _mm256_store_si256((__m256i*)(c + i), vec_sum);        // store the result in c
         } else {
             // handle the case where remaining elements are less than 8
             for (uint32_t j = i; j < num_elements; j++) {
@@ -196,10 +197,10 @@ static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uin
 #if defined(__x86_64__)
     for (uint32_t i = 0; i < num_elements; i += 16) {
         if (i + 16 <= num_elements) {  // ensure we do not go out of bounds
-            __m256i vec_a = _mm256_load_si256((__m256i*)&a[i]);  // load 8 elements from a
-            __m256i vec_b = _mm256_load_si256((__m256i*)&b[i]);  // load 8 elements from b
+            __m256i vec_a = _mm256_load_si256((__m256i*)(a + i));  // load 8 elements from a
+            __m256i vec_b = _mm256_load_si256((__m256i*)(b + i));  // load 8 elements from b
             __m256i vec_sum = _mm256_sub_epi16(vec_a, vec_b);     // add the elements
-            _mm256_store_si256((__m256i*)&c[i], vec_sum);        // store the result in c
+            _mm256_store_si256((__m256i*)(c + i), vec_sum);        // store the result in c
         } else {
             // handle the case where remaining elements are less than 8
             for (uint32_t j = i; j < num_elements; j++) {
@@ -298,7 +299,7 @@ void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint1
     memset(dest, 0, dest_row * dest_col * sizeof(int16_t));
     for (uint16_t i = 0; i < src_row; i++) {
         memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(int16_t));  // Copy original data
-    //    memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
+        // memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
     }
     // Pad remaining rows with zeros
     /*for (int16_t i = src_row; i < dest_row; i++) {
@@ -407,10 +408,8 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 #endif
 }
 
-
 // Strassen Algorithm
 // TODO: https://en.wikipedia.org/wiki/Strassen_algorithm
-//       
 /*
  * Strassen Matrix Multiplication
  *
