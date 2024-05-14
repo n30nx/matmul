@@ -40,7 +40,7 @@
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b
 
-#define LEAFSIZE 512
+#define LEAFSIZE 1024
 
 /*
  * I've used uint16_t because:
@@ -334,7 +334,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 // Strassen Algorithm
 // REF: https://en.wikipedia.org/wiki/Strassen_algorithm
 static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
-    // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 does the trick.
+    // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 or 1024 does the trick.
     if (size <= LEAFSIZE) {
         matrix_multiply(c, a, b, size, size, size);
     //} else if (size < LEAFSIZE) {
