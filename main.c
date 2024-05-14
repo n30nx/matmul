@@ -54,9 +54,9 @@ typedef int16_t *matrix_t;
 __attribute__((always_inline))
 static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
 #if defined(__x86_64__)
-    matrix_t new = (matrix_t)_mm_malloc(sizeof(int16_t) * row * col, 64);
+    matrix_t new = (matrix_t)_mm_malloc(sizeof(uint16_t) * row * col, 64);
 #else
-    matrix_t new = (matrix_t)malloc(sizeof(int16_t) * row * col);
+    matrix_t new = (matrix_t)malloc(sizeof(uint16_t) * row * col);
 #endif
     assert(new);
     DBG("allocated %hux%hu matrix with the size %lu", row, col, malloc_usable_size(new));
@@ -129,7 +129,7 @@ __attribute__((always_inline))
 static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
-            fprintf(stream, "%hd ", matrix[i * col + j]);
+            fprintf(stream, "%hu ", matrix[i * col + j]);
         }
         fprintf(stream, "\n");
     }
@@ -296,9 +296,9 @@ void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint1
         }
     }
 #else
-    memset(dest, 0, dest_row * dest_col * sizeof(int16_t));
+    memset(dest, 0, dest_row * dest_col * sizeof(uint16_t));
     for (uint16_t i = 0; i < src_row; i++) {
-        memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(int16_t));  // Copy original data
+        memcpy(dest + dest_col * i, src + src_col * i, src_col * sizeof(uint16_t));  // Copy original data
         // memset(dest + (dest_col * i) + src_col, 0, (dest_col - src_col) * sizeof(int16_t));  // Pad remaining columns with zeros
     }
     // Pad remaining rows with zeros
@@ -332,7 +332,7 @@ static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t
     DBG("dest_row = %hu", dest_row);
     for (uint16_t i = 0; i < dest_row; i++) {
         DBG("copying to dest + %hu (%hu * %hu) from src + %hu (%hu * %hu), with the size %hu", dest_col * i, dest_col, i, src_size * i, src_size, i, dest_col);
-        memcpy(dest + dest_col * i, src + src_size * i, sizeof(int16_t) * dest_col);
+        memcpy(dest + dest_col * i, src + src_size * i, sizeof(uint16_t) * dest_col);
     }
 }
 
@@ -385,7 +385,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
     }
 #else
 #define BLOCK_SIZE 64
-    int i, j, k, i0, j0, k0;
+    uint16_t i, j, k, i0, j0, k0;
     for (i = 0; i < n; i++) {
         for (j = 0; j < l; j++) {
             c[i * l + j] = 0;
@@ -629,11 +629,16 @@ int main(int argc, char **argv) {
     srand(time(NULL));
 
 #if defined(SEQUENTIAL)
-    for (uint16_t i = 0; i < m * n; i++) {
-        a_matrix[i] = i + 1;
+    for (uint16_t i = 0; i < m; i++) {
+        for (uint16_t j = 0; j < n; j++) {
+            a_matrix[i * n + j] = i * n + j + 1;
+        }
     }
-    for (uint16_t i = 0; i < n * l; i++) {
-        b_matrix[i] = i + 2;
+
+    for (uint16_t i = 0; i < n; i++) {
+        for (uint16_t j = 0; j < l; j++) {
+            b_matrix[i * l + j] = i * l + j + 2;
+        }
     }
 #else
     matrix_assign_random(a_matrix, m, n);
