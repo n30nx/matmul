@@ -23,6 +23,7 @@
 #endif
 //
 
+// Verbosed debug macro
 #if defined(DEBUG)
     #define DBG(fmt, ...) do {                                  \
         fprintf(stdout, "%s:%d ", __FUNCTION__, __LINE__);      \
@@ -47,19 +48,6 @@ typedef uint16_t *matrix_t;
 
 #pragma region mem
 
-/*
- * Create a New Matrix
- *
- * Belirtilen satır ve sütun sayısına sahip yeni bir matris oluşturur ve bellek tahsis eder.
- *
- * @param row: Oluşturulacak matrisin satır sayısı
- * @param col: Oluşturulacak matrisin sütun sayısı
- *
- * @pre row ve col sıfırdan farklı olmalıdır.
- *
- * @post Oluşturulan matris, her bir elemanı sıfır olan bir matris olmalıdır.
- * @post Matris belleği dinamik olarak tahsis edilmelidir.
- */
 __attribute__((always_inline))
 static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
 #if defined(__x86_64__)
@@ -230,7 +218,7 @@ static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t
     DBG("dest_row = %hu", dest_row);
     for (uint16_t i = 0; i < dest_row; i++) {
         DBG("copying to dest + %hu (%hu * %hu) from src + %hu (%hu * %hu), with the size %hu", dest_col * i, dest_col, i, src_size * i, src_size, i, dest_col);
-        memcpy(dest + dest_col * i, src + src_size * i, sizeof(uint16_t) * dest_col);
+        memcpy(dest + dest_col * i, src + src_size * i, sizeof(uint16_t) * dest_col); // Copy data from the padded matrix
     }
 }
 
@@ -252,7 +240,6 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 // FrodoKEM Matrix Multiplication
 // REFS: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
-//
 void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
@@ -286,6 +273,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
     }
 #else
 #define BLOCK_SIZE 64
+    // Zero out the result matrix
     uint16_t i, j, k, i0, j0, k0;
     for (i = 0; i < n; i++) {
         for (j = 0; j < l; j++) {
@@ -293,6 +281,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
         }
     }
 
+    // Cache-efficient matrix algorithm
     for (i0 = 0; i0 < n; i0 += BLOCK_SIZE) {
         for (j0 = 0; j0 < l; j0 += BLOCK_SIZE) {
             for (k0 = 0; k0 < m; k0 += BLOCK_SIZE) {
@@ -359,7 +348,6 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
                 b22[i * new_size + j] = b[(i + new_size) * size + j + new_size];
             }
         }
-
 #if defined(DEBUG)
         matrix_print(stdout, a11, new_size, new_size);
         matrix_print(stdout, a12, new_size, new_size);
@@ -459,6 +447,7 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
 }
 
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
+    // Get the padding size
     uint16_t new_size = round_size(max(max(m, n), l));
     new_size = new_size < 512 ? 512 : new_size;
     DBG("new_size: %hu", new_size);
