@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <assert.h>
 #include <limits.h>
 #include <time.h>
+#include <omp.h>
 
 // This part is for allowing me to work from my MacBook
 #if defined(__APPLE__)
@@ -72,6 +74,19 @@ static inline void matrix_free(matrix_t matrix) {
 
 #pragma region utils
 
+static bool is_power_of_two(uint16_t n)
+{
+    uint16_t i = 0;
+    while (n > 0) {
+        if ((n & 1) == 1) {
+            i++;
+        }
+        n = n >> 1;
+    }
+ 
+    return i == 1;
+}
+
 static const int log_table[64] = {
     63,  0, 58,  1, 59, 47, 53,  2,
     60, 39, 48, 27, 54, 33, 42,  3,
@@ -89,7 +104,7 @@ static const int log_table[64] = {
  */
 // Fast log2 algorithm
 __attribute__((always_inline))
-static inline int u16_log2(size_t size) {
+static inline uint16_t u16_log2(size_t size) {
     size |= size >> 1;
     size |= size >> 2;
     size |= size >> 4;
@@ -99,6 +114,9 @@ static inline int u16_log2(size_t size) {
 
 __attribute__((always_inline))
 static inline uint16_t round_size(uint16_t size) {
+    if (is_power_of_two(size)) {
+        return size;
+    }
     uint16_t cur = size;
     uint16_t log_cap = u16_log2(size);
     size = 1 << ((uint16_t)log_cap + 1); 
@@ -135,8 +153,8 @@ static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16
 
 __attribute__((always_inline))
 static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
-    uint32_t num_elements = size * size;
 #if defined(__x86_64__)
+    uint32_t num_elements = size * size;
     for (uint32_t i = 0; i < num_elements; i += 16) {
         if (i + 16 <= num_elements) {  // So we do not go out of bounds
             __m256i vec_a = _mm256_load_si256((__m256i*)(a + i));  // Load 16 elements from a
@@ -152,16 +170,18 @@ static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uin
         }
     }
 #else
-    for (uint32_t i = 0; i < num_elements; i++) {
-        c[i] = a[i] + b[i]; // Normal matrix addition
+    for (uint16_t i = 0; i < size; i++) {
+        for (uint16_t j = 0; j < size; j++) {
+            c[i * size + j] = a[i * size + j] + b[i * size + j]; // Normal matrix addition
+        }
     }
 #endif
 }
 
 __attribute__((always_inline))
 static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
-    uint32_t num_elements = size * size;
 #if defined(__x86_64__)
+    uint32_t num_elements = size * size;
     for (uint32_t i = 0; i < num_elements; i += 16) {
         if (i + 16 <= num_elements) {  // So we do not go out of bounds
             __m256i vec_a = _mm256_load_si256((__m256i*)(a + i));  // Load 16 elements from a
@@ -177,8 +197,10 @@ static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uin
         }
     }
 #else
-    for (uint32_t i = 0; i < num_elements; i++) {
-        c[i] = a[i] - b[i]; // Normal matrix subraction
+    for (uint16_t i = 0; i < size; i++) {
+        for (uint16_t j = 0; j < size; j++) {
+            c[i * size + j] = a[i * size + j] - b[i * size + j]; // Normal matrix subraction
+        }
     }
 #endif
 }
@@ -192,7 +214,7 @@ void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint1
         }
     }
 
-    // Now copy src to dest, taking care of possible misalignment
+    // Now copy src to dest, taking care of possible misalignment 
     for (uint16_t i = 0; i < src_row; i++) {
         uint16_t j = 0;
         for (; j < src_col - 15; j += 16) {  // Copy in blocks of 16, assuming src_col is large enough
@@ -244,6 +266,7 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
+    #pragma omp parallel for
     for (uint16_t j = 0; j < m; j++) {
         for (uint16_t q = 0; q < l; q += 16) {
             acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
@@ -255,6 +278,12 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
                 }
 
                 for (uint16_t k = 0; k < 8; k++) {
+                    // Prefetch the next block of 'b' data
+                    // TODO: comment this part if you need more speed
+                    if (q + 32 <= l) {  // Ensure we don't prefetch out of bounds
+                        _mm_prefetch((const char*)(b + (p + k) * l + q + 16), _MM_HINT_T0);
+                    }
+                    //
                     b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q));  // Load 16 elements from 'b'
                     acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
                 }
@@ -301,10 +330,22 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 
 // Strassen Algorithm
 // REF: https://en.wikipedia.org/wiki/Strassen_algorithm
+#define LEAFSIZE 512
 static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
     // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 does the trick.
-    if (size <= 512) {
+    if (size == LEAFSIZE) {
         matrix_multiply(c, a, b, size, size, size);
+    } else if (size < LEAFSIZE) {
+        matrix_t padded_a = matrix_new(LEAFSIZE, LEAFSIZE);
+        matrix_t padded_b = matrix_new(LEAFSIZE, LEAFSIZE);
+        matrix_t padded_c = matrix_new(LEAFSIZE, LEAFSIZE);
+
+        matrix_pad(padded_a, a, LEAFSIZE, LEAFSIZE, size, size);
+        matrix_pad(padded_b, b, LEAFSIZE, LEAFSIZE, size, size);
+
+        matrix_multiply(padded_c, padded_a, padded_b, size, size, size);
+
+        matrix_unpad(c, padded_c, size, size, LEAFSIZE);
     } else {
         uint16_t new_size = size / 2;
 
@@ -516,6 +557,29 @@ int main(int argc, char **argv) {
     FILE *matrix_out = fopen("matrix_output_main.txt", "w");
     matrix_print(matrix_out, c_matrix, m, l);
     fclose(matrix_out);
+
+#if defined(COMPARE) 
+    uint16_t new_size = round_size(max(max(m, n), l));
+    new_size = new_size < 512 ? 512 : new_size;
+    
+    matrix_t padded_a = matrix_new(new_size, new_size);
+    matrix_t padded_b = matrix_new(new_size, new_size);
+    matrix_t padded_d = matrix_new(new_size, new_size);
+
+    matrix_pad(padded_a, a_matrix, new_size, new_size, m, n);
+    matrix_pad(padded_b, b_matrix, new_size, new_size, n, l);
+
+    matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size);
+    // Free the padded variables as they won't be necessary anymore
+    matrix_free(padded_a);
+    matrix_free(padded_b);
+
+    // Remove the padding to print properly
+    matrix_unpad(d_matrix, padded_d, m, l, new_size);
+    matrix_free(padded_d);
+
+    matrix_eq(c_matrix, d_matrix, m, l);
+#endif
 
     // Free used memory
     matrix_free(a_matrix);

@@ -2,11 +2,12 @@ CC = gcc
 INTRINSICS = -mavx
 CFLAGS = -march=native
 DEBUG = -g -D DEBUG
-OPTIMIZE = -O3 -funroll-loops
+OPTIMIZE = -O3 -funroll-loops -fopenmp
 WARN = -Wall -Wextra
 SEQ = -D SEQUENTIAL
 SRC = main.c
 OUT = -o main
+CMP = -D COMPARE
 ASAN = -fsanitize=address,undefined
 
 BASE = $(CC) $(OPTIMIZE) $(WARN) $(OUT) $(CFLAGS) $(SRC)
@@ -20,6 +21,9 @@ build:
 
 seq:
 	$(BASE) $(SEQ)
+
+cmp:
+	$(BASE) $(CMP)
 
 debug:
 	$(BASE) $(SEQ) $(DEBUG)
