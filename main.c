@@ -305,7 +305,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
         }
     }
 #else
-#define BLOCK_SIZE 64
+#define BLOCK_SIZE 256
     // Zero out the result matrix
     uint16_t i, j, k, i0, j0, k0;
     for (i = 0; i < n; i++) {
@@ -337,17 +337,6 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
     // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 or 1024 does the trick.
     if (size <= LEAFSIZE) {
         matrix_multiply(c, a, b, size, size, size);
-    //} else if (size < LEAFSIZE) {
-        /*matrix_t padded_a = matrix_new(LEAFSIZE, LEAFSIZE);
-        matrix_t padded_b = matrix_new(LEAFSIZE, LEAFSIZE);
-        matrix_t padded_c = matrix_new(LEAFSIZE, LEAFSIZE);
-
-        matrix_pad(padded_a, a, LEAFSIZE, LEAFSIZE, size, size);
-        matrix_pad(padded_b, b, LEAFSIZE, LEAFSIZE, size, size);
-
-        matrix_multiply(padded_c, padded_a, padded_b, size, size, size);
-
-        matrix_unpad(c, padded_c, size, size, LEAFSIZE);*/
     } else {
         uint16_t new_size = size / 2;
 
