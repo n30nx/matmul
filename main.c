@@ -42,7 +42,7 @@
  * I've used uint16_t because:
  * 1- If I need to do 1000x1000 * 1000x1000 matrix multiplication I'm
  * gonna need way more bits and it's not feasible
- * 2- I'd like to think the elements of the matrix in \every M_{i} \in Z/2^16Z
+ * 2- I'd like to think the elements of the matrix \every M_{i} \in Z/2^16Z
  */
 typedef uint16_t *matrix_t;
 
