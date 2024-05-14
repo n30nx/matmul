@@ -18,11 +18,11 @@ endif
 build:
 	$(BASE)
 
-debug:
-	$(BASE) $(DEBUG)
-
 seq:
 	$(BASE) $(SEQ)
 
+debug:
+	$(BASE) $(SEQ) $(DEBUG)
+
 asan:
-	$(BASE) $(DEBUG) $(ASAN)
+	$(BASE) $(SEQ) $(DEBUG) $(ASAN)
