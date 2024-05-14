@@ -40,6 +40,8 @@
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b
 
+#define LEAFSIZE 512
+
 /*
  * I've used uint16_t because:
  * 1- If I need to do 1000x1000 * 1000x1000 matrix multiplication I'm
@@ -262,7 +264,6 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 // FrodoKEM Matrix Multiplication
 // REFS: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
-// TODO: try _mm_prefetch
 void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
@@ -272,18 +273,20 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
             acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
 
             for (uint16_t p = 0; p < n; p += 8) {  // Assuming n is a multiple of 8
+                // TODO: comment this part if you need more speed
+                // it lowers the cache miss rate roughly ~0.5%
+                // but adding at least 10 seconds to the execution of
+                // big (8192x8192) matrixes.
+                //if (q + 64 <= l) {
+                //    _mm_prefetch((const char*)(b + (p + 0) * l + q + 64), _MM_HINT_T0);
+                //}
+                //
                 __m256i sp_vec[8];
                 for (uint16_t k = 0; k < 8; k++) {
                     sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]);  // Broadcast elements from 'a'
                 }
 
                 for (uint16_t k = 0; k < 8; k++) {
-                    // Prefetch the next block of 'b' data
-                    // TODO: comment this part if you need more speed
-                    if (q + 32 <= l) {  // Ensure we don't prefetch out of bounds
-                        _mm_prefetch((const char*)(b + (p + k) * l + q + 16), _MM_HINT_T0);
-                    }
-                    //
                     b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q));  // Load 16 elements from 'b'
                     acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
                 }
@@ -330,13 +333,12 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 
 // Strassen Algorithm
 // REF: https://en.wikipedia.org/wiki/Strassen_algorithm
-#define LEAFSIZE 512
 static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
     // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 does the trick.
-    if (size == LEAFSIZE) {
+    if (size <= LEAFSIZE) {
         matrix_multiply(c, a, b, size, size, size);
-    } else if (size < LEAFSIZE) {
-        matrix_t padded_a = matrix_new(LEAFSIZE, LEAFSIZE);
+    //} else if (size < LEAFSIZE) {
+        /*matrix_t padded_a = matrix_new(LEAFSIZE, LEAFSIZE);
         matrix_t padded_b = matrix_new(LEAFSIZE, LEAFSIZE);
         matrix_t padded_c = matrix_new(LEAFSIZE, LEAFSIZE);
 
@@ -345,7 +347,7 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
 
         matrix_multiply(padded_c, padded_a, padded_b, size, size, size);
 
-        matrix_unpad(c, padded_c, size, size, LEAFSIZE);
+        matrix_unpad(c, padded_c, size, size, LEAFSIZE);*/
     } else {
         uint16_t new_size = size / 2;
 
@@ -491,7 +493,7 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
     // Get the padding size
     uint16_t new_size = round_size(max(max(m, n), l));
-    new_size = new_size < 512 ? 512 : new_size;
+    new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
     DBG("new_size: %hu", new_size);
 
     matrix_t padded_a = matrix_new(new_size, new_size);
@@ -560,7 +562,7 @@ int main(int argc, char **argv) {
 
 #if defined(COMPARE) 
     uint16_t new_size = round_size(max(max(m, n), l));
-    new_size = new_size < 512 ? 512 : new_size;
+    new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
     
     matrix_t padded_a = matrix_new(new_size, new_size);
     matrix_t padded_b = matrix_new(new_size, new_size);
