@@ -48,6 +48,25 @@ typedef uint16_t *matrix_t;
 
 #pragma region mem
 
+
+
+
+/*
+ * Matrix New
+ *
+ * This function allocates memory for a new matrix with the specified number of rows and columns.
+ *
+ * @param row: Number of rows in the new matrix
+ * @param col: Number of columns in the new matrix
+ *
+ * @return: Pointer to the newly allocated matrix
+ *
+ * @pre row and col should be greater than 0.
+ *
+ * @post Memory is allocated for a new matrix with the specified dimensions.
+ * @post The returned pointer points to the allocated memory block.
+ * @post If preconditions are not met or memory allocation fails, the behavior is undefined.
+ */
 __attribute__((always_inline))
 static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
 #if defined(__x86_64__)
@@ -60,6 +79,20 @@ static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
     return new;
 }
 
+
+
+/*
+ * Matrix Free
+ *
+ * This function frees the memory allocated for a matrix.
+ *
+ * @param matrix: Pointer to the matrix to be freed
+ *
+ * @pre matrix must point to a valid memory block allocated for a matrix.
+ *
+ * @post The memory allocated for the matrix pointed to by matrix is freed.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 __attribute__((always_inline))
 static inline void matrix_free(matrix_t matrix) {
 #if defined(__x86_64__)
@@ -68,6 +101,8 @@ static inline void matrix_free(matrix_t matrix) {
     free(matrix);
 #endif
 }
+
+
 #pragma endregion // mem
 
 #pragma region utils
@@ -83,11 +118,27 @@ static const int log_table[64] = {
     44, 24, 15,  8, 23,  7,  6,  5
 };
 
+
+
 /*
  * de Brujin sequence
  * http://supertech.csail.mit.edu/papers/debruijn.pdf
+ * Fast log2 algorithm
+*/
+
+/*
+ * Unsigned 16-bit Logarithm Base 2
+ *
+ * This function calculates the logarithm base 2 of a 16-bit unsigned integer.
+ *
+ * @param size: Size for which the logarithm base 2 will be calculated
+ *
+ * @return: Logarithm base 2 of the input size
+ *
+ * @pre None
+ *
+ * @post The returned value is the logarithm base 2 of the input size.
  */
-// Fast log2 algorithm
 __attribute__((always_inline))
 static inline int u16_log2(size_t size) {
     size |= size >> 1;
@@ -97,6 +148,20 @@ static inline int u16_log2(size_t size) {
     return log_table[((size - (size >> 1)) * 0x07EDD5E59A4E28C2) >> 58];
 }
 
+
+/*
+ * Round Size
+ *
+ * This function rounds up a given size to the nearest power of 2.
+ *
+ * @param size: Size to be rounded up
+ *
+ * @return: Rounded up size to the nearest power of 2
+ *
+ * @pre None
+ *
+ * @post The returned value is the input size rounded up to the nearest power of 2.
+ */
 __attribute__((always_inline))
 static inline uint16_t round_size(uint16_t size) {
     uint16_t cur = size;
@@ -111,6 +176,23 @@ static inline uint16_t round_size(uint16_t size) {
     return size;
 }
 
+
+
+/*
+ * Matrix Random Assignment
+ *
+ * This function assigns random values (modulo 2^16) to all elements of a matrix.
+ *
+ * @param matrix: Matrix to which random values will be assigned (2D array of integers, stored in row-major order)
+ * @param row: Number of rows in the matrix
+ * @param col: Number of columns in the matrix
+ *
+ * @pre matrix must not be NULL.
+ * @pre row and col should be greater than 0.
+ *
+ * @post All elements of the matrix are assigned random values modulo 2^16.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 __attribute__((always_inline))
 static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
     // Pretty straight-forward, assigns random (mod 2^16) to all indexes
@@ -121,6 +203,24 @@ static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t 
     }
 }
 
+
+/*
+ * Matrix Print
+ *
+ * This function prints the elements of a matrix to the specified stream.
+ *
+ * @param stream: Pointer to the file stream where the matrix will be printed
+ * @param matrix: Matrix to be printed (2D array of integers, stored in row-major order)
+ * @param row: Number of rows in the matrix
+ * @param col: Number of columns in the matrix
+ *
+ * @pre stream must not be NULL.
+ * @pre matrix must not be NULL.
+ * @pre row and col should be greater than 0.
+ *
+ * @post The matrix elements are printed to the specified stream.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 __attribute__((always_inline))
 static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16_t row, uint16_t col) {
     // Writes values to the given stream
@@ -133,7 +233,25 @@ static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16
     fprintf(stream, "\n\n\n");
 }
 
-__attribute__((always_inline))
+
+/*
+ * Matrix Addition
+ *
+ * This function adds matrix b to matrix a and stores the result in matrix c.
+ *
+ * @param c: Resultant matrix (2D array of integers, stored in row-major order)
+ * @param a: Matrix operand A (2D array of integers, stored in row-major order)
+ * @param b: Matrix operand B (2D array of integers, stored in row-major order)
+ * @param size: Size of the matrices (number of rows or columns)
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre size should be greater than 0.
+ * @pre Matrices a, b, and c must be properly allocated to hold size*size elements.
+ *
+ * @post Matrix c contains the result of the addition of matrix b to matrix a.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
+ __attribute__((always_inline))
 static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
     uint32_t num_elements = size * size;
 #if defined(__x86_64__)
@@ -158,6 +276,26 @@ static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uin
 #endif
 }
 
+
+
+
+/*
+ * Matrix Subtraction
+ *
+ * This function subtracts matrix b from matrix a and stores the result in matrix c.
+ *
+ * @param c: Resultant matrix (2D array of integers, stored in row-major order)
+ * @param a: Matrix operand A (2D array of integers, stored in row-major order)
+ * @param b: Matrix operand B (2D array of integers, stored in row-major order)
+ * @param size: Size of the matrices (number of rows or columns)
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre size should be greater than 0.
+ * @pre Matrices a, b, and c must be properly allocated to hold size*size elements.
+ *
+ * @post Matrix c contains the result of the subtraction of matrix b from matrix a.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 __attribute__((always_inline))
 static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
     uint32_t num_elements = size * size;
@@ -183,6 +321,26 @@ static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uin
 #endif
 }
 
+/*
+ * Matrix Padding
+ *
+ * This function pads the source matrix with zeroes to match the dimensions of the destination matrix
+ * and then copies the source matrix into the padded area of the destination matrix.
+ *
+ * @param dest: Destination matrix (2D array of integers, stored in row-major order)
+ * @param src: Source matrix (2D array of integers, stored in row-major order)
+ * @param dest_row: Number of rows in the destination matrix
+ * @param dest_col: Number of columns in the destination matrix
+ * @param src_row: Number of rows in the source matrix
+ * @param src_col: Number of columns in the source matrix
+ *
+ * @pre dest and src must not be NULL.
+ * @pre dest_row, dest_col, src_row, and src_col should be greater than 0.
+ * @pre The size of dest should be large enough to accommodate src after padding.
+ *
+ * @post The destination matrix dest contains the padded source matrix src.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
 #if defined(__x86_64__)
     __m256i zero = _mm256_setzero_si256();
@@ -211,6 +369,26 @@ void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint1
 #endif
 }
 
+
+
+/*
+ * Matrix Unpadding
+ *
+ * This function copies data from a padded matrix to a destination matrix, removing padding.
+ *
+ * @param dest: Destination matrix to which data will be copied (2D array of integers, stored in row-major order)
+ * @param src: Padded source matrix from which data will be copied (2D array of integers, stored in row-major order)
+ * @param dest_row: Number of rows in the destination matrix
+ * @param dest_col: Number of columns in the destination matrix
+ * @param src_size: Size of the padded source matrix (number of rows or columns)
+ *
+ * @pre dest and src must not be NULL.
+ * @pre dest_row and dest_col should be greater than 0.
+ * @pre src_size should be greater than or equal to dest_row and dest_col.
+ *
+ * @post Data is copied from the padded source matrix to the destination matrix, removing padding.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 __attribute__((always_inline))
 static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_size) {
     DBG("dest_start = %p, dest_end = %p, length = %hu", dest, dest + dest_row * dest_col, dest_row * dest_col);
@@ -222,6 +400,25 @@ static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t
     }
 }
 
+
+
+/*
+ * Matrix Equality Check (Unused)
+ *
+ * This function checks if two matrices are equal element-wise.
+ * It is intended for validating matrix multiplication, but it is currently unused.
+ *
+ * @param a: First matrix to be compared (2D array of integers, stored in row-major order)
+ * @param b: Second matrix to be compared (2D array of integers, stored in row-major order)
+ * @param m: Number of rows in the matrices
+ * @param l: Number of columns in the matrices
+ *
+ * @pre a and b must not be NULL.
+ * @pre m and l should be greater than 0.
+ *
+ * @post If the matrices are equal element-wise, "Function is correct!" is printed; otherwise, "Function is wrong!" is printed.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 __attribute__((always_inline, unused))
 static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t l) {
     // Check if matrixes are equal (used for validating multiplication)
@@ -241,7 +438,34 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 // REFS: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
 // TODO: try _mm_prefetch
-void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
+
+
+/*
+ * Matrix Multiplication
+ *
+ * This function multiplies matrix a and matrix b and stores the result in matrix c.
+ * It uses optimized SIMD instructions for x86_64 architectures and a cache-efficient
+ * algorithm for other architectures.
+ *
+ * @param c: Resultant matrix (2D array of integers, stored in row-major order)
+ * @param a: Matrix operand A (2D array of integers, stored in row-major order)
+ * @param b: Matrix operand B (2D array of integers, stored in row-major order)
+ * @param m: Number of rows in matrix a and matrix c
+ * @param n: Number of columns in matrix a and number of rows in matrix b
+ * @param l: Number of columns in matrix b and matrix c
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre m, n, and l should be greater than 0.
+ * @pre Matrices a, b, and c must be properly allocated to hold m*n, n*l, and m*l elements respectively.
+ * @pre Matrix a must have dimensions m x n.
+ * @pre Matrix b must have dimensions n x l.
+ * @pre Matrix c must have dimensions m x l.
+ *
+ * @post Matrix c contains the result of the multiplication of matrix a and matrix b.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
+ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) 
+ {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
     for (uint16_t j = 0; j < m; j++) {
@@ -301,6 +525,27 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 
 // Strassen Algorithm
 // REF: https://en.wikipedia.org/wiki/Strassen_algorithm
+
+/*
+ * Strassen Algorithm for Matrix Multiplication
+ *
+ * This function multiplies matrix a and matrix b using the Strassen algorithm and stores the result in matrix c.
+ * It switches to a conventional matrix multiplication algorithm if the size of the matrices falls below a certain threshold.
+ *
+ * @param c: Resultant matrix (2D array of integers, stored in row-major order)
+ * @param a: Matrix operand A (2D array of integers, stored in row-major order)
+ * @param b: Matrix operand B (2D array of integers, stored in row-major order)
+ * @param size: Size of the matrices (number of rows or columns)
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre size should be greater than 0.
+ * @pre Matrices a, b, and c must be properly allocated to hold size*size elements.
+ * @pre Matrices a and b must have the same dimensions.
+ * @pre Size should be a power of 2.
+ *
+ * @post Matrix c contains the result of the multiplication of matrix a and matrix b using the Strassen algorithm.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
     // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 does the trick.
     if (size <= 512) {
@@ -446,7 +691,26 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
         matrix_free(tmp_b);
     }
 }
-
+/*
+ * Matrix Preparation and Multiplication
+ *
+ * This function prepares matrices for multiplication by padding them and then performs matrix multiplication.
+ * It uses the Strassen algorithm if the size of the matrices exceeds a certain threshold.
+ *
+ * @param c: Resultant matrix (2D array of integers, stored in row-major order)
+ * @param a: Matrix operand A (2D array of integers, stored in row-major order)
+ * @param b: Matrix operand B (2D array of integers, stored in row-major order)
+ * @param m: Number of rows in matrix a and matrix c
+ * @param n: Number of columns in matrix a and number of rows in matrix b
+ * @param l: Number of columns in matrix b and matrix c
+ *
+ * @pre c, a, and b must not be NULL.
+ * @pre m, n, and l should be greater than 0.
+ * @pre Matrices a, b, and c must be properly allocated to hold m*n, n*l, and m*l elements respectively.
+ *
+ * @post Matrix c contains the result of the multiplication of matrix a and matrix b after proper padding and unpadding.
+ * @post If preconditions are not met, the behavior is undefined.
+ */
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
     // Get the padding size
     uint16_t new_size = round_size(max(max(m, n), l));
