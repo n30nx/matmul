@@ -250,11 +250,11 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 
             for (uint16_t p = 0; p < n; p += 8) {  // Assuming n is a multiple of 8
                 __m256i sp_vec[8];
-                for (int k = 0; k < 8; k++) {
+                for (uint16_t k = 0; k < 8; k++) {
                     sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]);  // Broadcast elements from 'a'
                 }
 
-                for (int k = 0; k < 8; k++) {
+                for (uint16_t k = 0; k < 8; k++) {
                     b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q));  // Load 16 elements from 'b'
                     acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
                 }
@@ -266,7 +266,7 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
                 // Handle remaining columns that do not fill a full SIMD register width
                 int16_t temp[16];
                 _mm256_storeu_si256((__m256i*)temp, acc_vec);
-                for (int r = 0; r < l % 16; r++) {
+                for (uint16_t r = 0; r < l % 16; r++) {
                     c[j * l + q + r] = temp[r];
                 }
             }
