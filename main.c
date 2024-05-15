@@ -485,23 +485,44 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
     new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
     DBG("new_size: %hu", new_size);
 
-    matrix_t padded_a = matrix_new(new_size, new_size);
-    matrix_t padded_b = matrix_new(new_size, new_size);
-    matrix_t padded_result = matrix_new(new_size, new_size);
+    bool pad_a = new_size != m || new_size != n;
+    matrix_t padded_a;
+    if (!pad_a) {
+        padded_a = a;
+    } else {
+        padded_a = matrix_new(new_size, new_size);
+        matrix_pad(padded_a, a, new_size, new_size, m, n);
+    }
+
+    bool pad_b = new_size != n || new_size != l;
+    matrix_t padded_b;
+    if (!pad_b) {
+        padded_b = b;
+    } else {
+        padded_b = matrix_new(new_size, new_size);
+        matrix_pad(padded_b, b, new_size, new_size, n, l);
+    }
+
+    bool pad_result = new_size != m || new_size != l;
+    matrix_t padded_result;
+    if (pad_result) {
+        padded_result = matrix_new(new_size, new_size);
+    } else {
+        padded_result = c;
+    }
 
     // Pad the matrix for the strassen algorithm to be able to divide them into equal 2^n lengthed parts
-    matrix_pad(padded_a, a, new_size, new_size, m, n);
-    matrix_pad(padded_b, b, new_size, new_size, n, l);
-
     strassen(padded_result, padded_a, padded_b, new_size);
 
     // Free the padded variables as they won't be necessary anymore
-    matrix_free(padded_a);
-    matrix_free(padded_b);
+    if (pad_a) matrix_free(padded_a);
+    if (pad_b) matrix_free(padded_b);
 
     // Remove the padding to print properly
-    matrix_unpad(c, padded_result, m, l, new_size);
-    matrix_free(padded_result);
+    if (pad_result) {
+        matrix_unpad(c, padded_result, m, l, new_size);
+        matrix_free(padded_result);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -521,7 +542,6 @@ int main(int argc, char **argv) {
     matrix_t a_matrix = matrix_new(m, n);
     matrix_t b_matrix = matrix_new(n, l);
     matrix_t c_matrix = matrix_new(m, l);
-    matrix_t d_matrix = matrix_new(m, l);
 
     srand(time(NULL));
 
@@ -549,34 +569,58 @@ int main(int argc, char **argv) {
     matrix_print(matrix_out, c_matrix, m, l);
     fclose(matrix_out);
 
-#if defined(COMPARE) 
+#if defined(COMPARE)
+    matrix_t d_matrix = matrix_new(m, l);
+
     uint16_t new_size = round_size(max(max(m, n), l));
     new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
-    
-    matrix_t padded_a = matrix_new(new_size, new_size);
-    matrix_t padded_b = matrix_new(new_size, new_size);
-    matrix_t padded_d = matrix_new(new_size, new_size);
+   
+    bool pad_a = new_size != m || new_size != n;
+    matrix_t padded_a;
+    if (!pad_a) {
+        padded_a = a_matrix;
+    } else {
+        padded_a = matrix_new(new_size, new_size);
+        matrix_pad(padded_a, a_matrix, new_size, new_size, m, n);
+    }
 
-    matrix_pad(padded_a, a_matrix, new_size, new_size, m, n);
-    matrix_pad(padded_b, b_matrix, new_size, new_size, n, l);
+    bool pad_b = new_size != n || new_size != l;
+    matrix_t padded_b;
+    if (!pad_b) {
+        padded_b = b_matrix;
+    } else {
+        padded_b = matrix_new(new_size, new_size);
+        matrix_pad(padded_b, b_matrix, new_size, new_size, n, l);
+    }
+
+    bool pad_result = new_size != m || new_size != l;
+    matrix_t padded_d;
+    if (!pad_result) {
+        padded_d = d_matrix;
+    } else {
+        padded_d = matrix_new(new_size, new_size);
+    }
 
     matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size);
     // Free the padded variables as they won't be necessary anymore
-    matrix_free(padded_a);
-    matrix_free(padded_b);
+    if (pad_a) matrix_free(padded_a);
+    if (pad_b) matrix_free(padded_b);
 
     // Remove the padding to print properly
-    matrix_unpad(d_matrix, padded_d, m, l, new_size);
-    matrix_free(padded_d);
+    if (pad_result) {
+        matrix_unpad(d_matrix, padded_d, m, l, new_size);
+        matrix_free(padded_d);
+    }
 
     matrix_eq(c_matrix, d_matrix, m, l);
+
+    matrix_free(d_matrix);
 #endif
 
     // Free used memory
     matrix_free(a_matrix);
     matrix_free(b_matrix);
     matrix_free(c_matrix);
-    matrix_free(d_matrix);
 
     return 0;
 }

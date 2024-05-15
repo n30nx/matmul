@@ -23,7 +23,7 @@ seq:
 	$(BASE) $(SEQ)
 
 cmp:
-	$(BASE) $(CMP)
+	$(BASE) $(CMP) $(SEQ)
 
 debug:
 	$(BASE) $(SEQ) $(DEBUG)
