@@ -40,7 +40,7 @@
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b
 
-#define LEAFSIZE 1024
+#define LEAFSIZE 256
 
 /*
  * I've used uint16_t because:
@@ -154,54 +154,54 @@ static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16
 }
 
 __attribute__((always_inline))
-static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
+static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size, uint16_t original_size) {
 #if defined(__x86_64__)
-    uint32_t num_elements = size * size;
-    for (uint32_t i = 0; i < num_elements; i += 16) {
-        if (i + 16 <= num_elements) {  // So we do not go out of bounds
-            __m256i vec_a = _mm256_load_si256((__m256i*)(a + i));  // Load 16 elements from a
-            __m256i vec_b = _mm256_load_si256((__m256i*)(b + i));  // Load 16 elements from b
-            __m256i vec_sum = _mm256_add_epi16(vec_a, vec_b);      // Add the elements
-            _mm256_store_si256((__m256i*)(c + i), vec_sum);        // Store the result in c
-        } else {
-            // Handle the case where remaining elements are less than 16
-            for (uint32_t j = i; j < num_elements; j++) {
-                c[j] = a[j] + b[j]; // Non-intrinsic addition for remaining elements
+    for (uint16_t i = 0; i < size; i++) {
+        for (uint16_t j = 0; j < size; j += 16) {
+            if (j + 16 <= size) {  // Ensure we do not go out of bounds
+                __m256i vec_a = _mm256_load_si256((__m256i*)(a + i * original_size + j));  // Load 16 elements from a
+                __m256i vec_b = _mm256_load_si256((__m256i*)(b + i * original_size + j));  // Load 16 elements from b
+                __m256i vec_sub = _mm256_add_epi16(vec_a, vec_b);      // Subtract the elements
+                _mm256_store_si256((__m256i*)(c + i * original_size + j), vec_sub);        // Store the result in c
+            } else {
+                // Handle the case where remaining elements are less than 16
+                for (uint16_t k = j; k < size; k++) {
+                    c[i * original_size + k] = a[i * original_size + k] + b[i * original_size + k]; // Non-intrinsic subtraction for remaining elements
+                }
             }
-            return; // If we've got this far, there are no more elements left
         }
     }
 #else
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j++) {
-            c[i * size + j] = a[i * size + j] + b[i * size + j]; // Normal matrix addition
+            c[i * original_size + j] = a[i * original_size + j] + b[i * original_size + j]; // Normal matrix subtraction
         }
     }
 #endif
 }
 
 __attribute__((always_inline))
-static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size) {
+static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size, uint16_t original_size) {
 #if defined(__x86_64__)
-    uint32_t num_elements = size * size;
-    for (uint32_t i = 0; i < num_elements; i += 16) {
-        if (i + 16 <= num_elements) {  // So we do not go out of bounds
-            __m256i vec_a = _mm256_load_si256((__m256i*)(a + i));  // Load 16 elements from a
-            __m256i vec_b = _mm256_load_si256((__m256i*)(b + i));  // Load 16 elements from b
-            __m256i vec_sum = _mm256_sub_epi16(vec_a, vec_b);      // Subtract the elements
-            _mm256_store_si256((__m256i*)(c + i), vec_sum);        // Store the result in c
-        } else {
-            // Handle the case where remaining elements are less than 16
-            for (uint32_t j = i; j < num_elements; j++) {
-                c[j] = a[j] - b[j]; // Non-intrinsic subtraction for remaining elements
+    for (uint16_t i = 0; i < size; i++) {
+        for (uint16_t j = 0; j < size; j += 16) {
+            if (j + 16 <= size) {  // Ensure we do not go out of bounds
+                __m256i vec_a = _mm256_load_si256((__m256i*)(a + i * original_size + j));  // Load 16 elements from a
+                __m256i vec_b = _mm256_load_si256((__m256i*)(b + i * original_size + j));  // Load 16 elements from b
+                __m256i vec_sub = _mm256_sub_epi16(vec_a, vec_b);      // Subtract the elements
+                _mm256_store_si256((__m256i*)(c + i * original_size + j), vec_sub);        // Store the result in c
+            } else {
+                // Handle the case where remaining elements are less than 16
+                for (uint16_t k = j; k < size; k++) {
+                    c[i * original_size + k] = a[i * original_size + k] - b[i * original_size + k]; // Non-intrinsic subtraction for remaining elements
+                }
             }
-            return; // If we've got this far, there are no more elements left
         }
     }
 #else
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j++) {
-            c[i * size + j] = a[i * size + j] - b[i * size + j]; // Normal matrix subraction
+            c[i * original_size + j] = a[i * original_size + j] - b[i * original_size + j]; // Normal matrix subtraction
         }
     }
 #endif
@@ -264,7 +264,7 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 // FrodoKEM Matrix Multiplication
 // REFS: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
-void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
+void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l, uint16_t original_size) {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
     #pragma omp parallel for
@@ -273,33 +273,33 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
             acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
 
             for (uint16_t p = 0; p < n; p += 8) {  // Assuming n is a multiple of 8
-                // TODO: comment this part if you need more speed
-                // it lowers the cache miss rate roughly ~0.5%
-                // but adding at least 10 seconds to the execution of
-                // big (8192x8192) matrixes.
-                //if (q + 64 <= l) {
-                //    _mm_prefetch((const char*)(b + (p + 0) * l + q + 64), _MM_HINT_T0);
-                //}
-                //
                 __m256i sp_vec[8];
                 for (uint16_t k = 0; k < 8; k++) {
-                    sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]);  // Broadcast elements from 'a'
+                    sp_vec[k] = _mm256_set1_epi16(a[j * original_size + p + k]);  // Broadcast elements from 'a'
                 }
 
                 for (uint16_t k = 0; k < 8; k++) {
-                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q));  // Load 16 elements from 'b'
+                    // Ensure we don't load out of bounds
+                    if (q + 16 <= l) {
+                        b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * original_size + q));  // Load 16 elements from 'b'
+                    } else {
+                        __m256i temp_b = _mm256_setzero_si256();
+                        uint16_t elements_to_load = l - q;
+                        for (uint16_t offset = 0; offset < elements_to_load; offset++) {
+                            ((uint16_t*)&temp_b)[offset] = b[(p + k) * original_size + q + offset];
+                        }
+                        b_vec = temp_b;
+                    }
                     acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
                 }
             }
 
             if (q + 16 <= l) {
-                _mm256_store_si256((__m256i*)(c + j * l + q), acc_vec);  // Store the result back to 'c'
+                _mm256_store_si256((__m256i*)(c + j * original_size + q), acc_vec);  // Store the result back to 'c'
             } else {
-                // Handle remaining columns that do not fill a full SIMD register width
-                uint16_t temp[16];
-                _mm256_storeu_si256((__m256i*)temp, acc_vec);
-                for (uint16_t r = 0; r < l % 16; r++) {
-                    c[j * l + q + r] = temp[r];
+                uint16_t elements_to_store = l - q;
+                for (uint16_t offset = 0; offset < elements_to_store; offset++) {
+                    c[j * original_size + q + offset] = ((uint16_t*)&acc_vec)[offset];
                 }
             }
         }
@@ -307,21 +307,20 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 #else
 #define BLOCK_SIZE 256
     // Zero out the result matrix
-    uint16_t i, j, k, i0, j0, k0;
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < l; j++) {
+    for (uint16_t i = 0; i < m; i++) {
+        for (uint16_t j = 0; j < l; j++) {
             c[i * l + j] = 0;
         }
     }
 
-    // Cache-efficient matrix algorithm
-    for (i0 = 0; i0 < n; i0 += BLOCK_SIZE) {
-        for (j0 = 0; j0 < l; j0 += BLOCK_SIZE) {
-            for (k0 = 0; k0 < m; k0 += BLOCK_SIZE) {
-                for (i = i0; i < i0 + BLOCK_SIZE && i < n; i++) {
-                    for (j = j0; j < j0 + BLOCK_SIZE && j < l; j++) {
-                        for (k = k0; k < k0 + BLOCK_SIZE && k < m; k++) {
-                            c[i * l + j] += a[i * n + k] * b[k * l + j];
+    // Cache-efficient matrix multiplication
+    for (uint16_t i0 = 0; i0 < m; i0 += BLOCK_SIZE) {
+        for (uint16_t j0 = 0; j0 < l; j0 += BLOCK_SIZE) {
+            for (uint16_t k0 = 0; k0 < n; k0 += BLOCK_SIZE) {
+                for (uint16_t i = i0; i < i0 + BLOCK_SIZE && i < m; i++) {
+                    for (uint16_t j = j0; j < j0 + BLOCK_SIZE && j < l; j++) {
+                        for (uint16_t k = k0; k < k0 + BLOCK_SIZE && k < n; k++) {
+                            c[i * l + j] += a[i * original_size + k] * b[k * original_size + j];
                         }
                     }
                 }
@@ -333,42 +332,31 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n,
 
 // Strassen Algorithm
 // REF: https://en.wikipedia.org/wiki/Strassen_algorithm
-static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t size) {
+static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t original_size, matrix_t p1, matrix_t p2, matrix_t p3, matrix_t p4, matrix_t p5, matrix_t p6, matrix_t p7, matrix_t tmp_a, matrix_t tmp_b) {
     // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 or 1024 does the trick.
     if (size <= LEAFSIZE) {
-        matrix_multiply(c, a, b, size, size, size);
+        matrix_multiply(c, a, b, size, size, size, original_size);
     } else {
         uint16_t new_size = size / 2;
 
         // Bootstrap submatrices
-        matrix_t a11 = matrix_new(new_size, new_size);
-        matrix_t a12 = matrix_new(new_size, new_size);
-        matrix_t a21 = matrix_new(new_size, new_size);
-        matrix_t a22 = matrix_new(new_size, new_size);
+        matrix_t a11 = a;
+        matrix_t a12 = a + new_size;
+        matrix_t a21 = a + new_size * original_size;
+        matrix_t a22 = a + new_size * original_size + new_size;
         
-        matrix_t b11 = matrix_new(new_size, new_size);
-        matrix_t b12 = matrix_new(new_size, new_size);
-        matrix_t b21 = matrix_new(new_size, new_size);
-        matrix_t b22 = matrix_new(new_size, new_size);
+        matrix_t b11 = b;
+        matrix_t b12 = b + new_size;
+        matrix_t b21 = b + new_size * original_size;
+        matrix_t b22 = b + new_size * original_size + new_size;
 
-        matrix_t c11 = matrix_new(new_size, new_size);
-        matrix_t c12 = matrix_new(new_size, new_size);
-        matrix_t c21 = matrix_new(new_size, new_size);
-        matrix_t c22 = matrix_new(new_size, new_size);
-
-        matrix_t p1 = matrix_new(new_size, new_size);
-        matrix_t p2 = matrix_new(new_size, new_size);
-        matrix_t p3 = matrix_new(new_size, new_size);
-        matrix_t p4 = matrix_new(new_size, new_size);
-        matrix_t p5 = matrix_new(new_size, new_size);
-        matrix_t p6 = matrix_new(new_size, new_size);
-        matrix_t p7 = matrix_new(new_size, new_size);
-
-        matrix_t tmp_a = matrix_new(new_size, new_size);
-        matrix_t tmp_b = matrix_new(new_size, new_size);
+        matrix_t c11 = c;
+        matrix_t c12 = c + new_size;
+        matrix_t c21 = c + new_size * original_size;
+        matrix_t c22 = c + new_size * original_size + new_size;
 
         // Divide to submatrices
-        for (uint16_t i = 0; i < new_size; i++) {
+        /*for (uint16_t i = 0; i < new_size; i++) {
             for (uint16_t j = 0; j < new_size; j++) {
                 a11[i * new_size + j] = a[i * size + j];
                 a12[i * new_size + j] = a[i * size + j + new_size];
@@ -380,7 +368,7 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
                 b21[i * new_size + j] = b[(i + new_size) * size + j];
                 b22[i * new_size + j] = b[(i + new_size) * size + j + new_size];
             }
-        }
+        }*/
 #if defined(DEBUG)
         matrix_print(stdout, a11, new_size, new_size);
         matrix_print(stdout, a12, new_size, new_size);
@@ -394,88 +382,88 @@ static void strassen(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, u
 #endif
 
         // p1 = a11 * (b12 - b22)
-        matrix_sub(tmp_b, b12, b22, new_size);
-        strassen(p1, a11, tmp_b, new_size);
+        matrix_sub(tmp_b, b12, b22, new_size, original_size);
+        strassen(p1, a11, tmp_b, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
         // p2 = (a11 + a12) * b22
-        matrix_add(tmp_a, a11, a12, new_size);
-        strassen(p2, tmp_a, b22, new_size);
+        matrix_add(tmp_a, a11, a12, new_size, original_size);
+        strassen(p2, tmp_a, b22, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
        
         // p3 = (a21 + a22) * b11 
-        matrix_add(tmp_a, a21, a22, new_size);
-        strassen(p3, tmp_a, b11, new_size);
+        matrix_add(tmp_a, a21, a22, new_size, original_size);
+        strassen(p3, tmp_a, b11, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
         // p4 = a22 * (b21 - b11)
-        matrix_sub(tmp_b, b21, b11, new_size);
-        strassen(p4, a22, tmp_b, new_size);
+        matrix_sub(tmp_b, b21, b11, new_size, original_size);
+        strassen(p4, a22, tmp_b, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
         // p5 = (a11 + a22) * (b11 + b22)
-        matrix_add(tmp_a, a11, a22, new_size);
-        matrix_add(tmp_b, b11, b22, new_size);
-        strassen(p5, tmp_a, tmp_b, new_size);
+        matrix_add(tmp_a, a11, a22, new_size, original_size);
+        matrix_add(tmp_b, b11, b22, new_size, original_size);
+        strassen(p5, tmp_a, tmp_b, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
         // p6 = (a12 - a22) * (b21 + b22)    
-        matrix_sub(tmp_a, a12, a22, new_size);
-        matrix_add(tmp_b, b21, b22, new_size);
-        strassen(p6, tmp_a, tmp_b, new_size);
+        matrix_sub(tmp_a, a12, a22, new_size, original_size);
+        matrix_add(tmp_b, b21, b22, new_size, original_size);
+        strassen(p6, tmp_a, tmp_b, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
         // p7 = (a11 - a21) * (b11 + b12)
-        matrix_sub(tmp_a, a11, a21, new_size);
-        matrix_add(tmp_b, b11, b12, new_size);
-        strassen(p7, tmp_a, tmp_b, new_size);
+        matrix_sub(tmp_a, a11, a21, new_size, original_size);
+        matrix_add(tmp_b, b11, b12, new_size, original_size);
+        strassen(p7, tmp_a, tmp_b, new_size, original_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
         // c11 = p5 + p4 - p2 + p6
-        matrix_add(c11, p5, p4, new_size);
-        matrix_sub(c11, c11, p2, new_size);
-        matrix_add(c11, c11, p6, new_size);
+        matrix_add(c11, p5, p4, new_size, original_size);
+        matrix_sub(c11, c11, p2, new_size, original_size);
+        matrix_add(c11, c11, p6, new_size, original_size);
 
         // c12 = p1 + p2
-        matrix_add(c12, p1, p2, new_size);
+        matrix_add(c12, p1, p2, new_size, original_size);
 
         // c21 = p3 + p4
-        matrix_add(c21, p3, p4, new_size);
+        matrix_add(c21, p3, p4, new_size, original_size);
 
         // c22 = p5 + p1 - p3 - p7
-        matrix_add(c22, p5, p1, new_size);
-        matrix_sub(c22, c22, p3, new_size);
-        matrix_sub(c22, c22, p7, new_size);
+        matrix_add(c22, p5, p1, new_size, original_size);
+        matrix_sub(c22, c22, p3, new_size, original_size);
+        matrix_sub(c22, c22, p7, new_size, original_size);
         
         // Place the output to the relevant quadrants
-        for (uint16_t i = 0; i < new_size; i++) {
-            for (uint16_t j = 0; j < new_size; j++) {
-                c[i * size + j] = c11[i * new_size + j]; 
-                c[i * size + (j + new_size)] = c12[i * new_size + j]; 
-                c[(i + new_size) * size + j] = c21[i * new_size + j]; 
-                c[(i + new_size) * size + (j + new_size)] = c22[i * new_size + j]; 
-            }
-        }
+        //for (uint16_t i = 0; i < new_size; i++) {
+        //    for (uint16_t j = 0; j < new_size; j++) {
+        //        c[i * size + j] = c11[i * new_size + j]; 
+        //        c[i * size + (j + new_size)] = c12[i * new_size + j]; 
+        //        c[(i + new_size) * size + j] = c21[i * new_size + j]; 
+        //        c[(i + new_size) * size + (j + new_size)] = c22[i * new_size + j]; 
+        //    }
+        //}
 
         // Free used memory
-        matrix_free(a11);
-        matrix_free(a12);
-        matrix_free(a21);
-        matrix_free(a22);
-        
-        matrix_free(b11);
-        matrix_free(b12);
-        matrix_free(b21);
-        matrix_free(b22);
-        
-        matrix_free(c11);
-        matrix_free(c12);
-        matrix_free(c21);
-        matrix_free(c22);
-       
-        matrix_free(p1);
-        matrix_free(p2);
-        matrix_free(p3);
-        matrix_free(p4);
-        matrix_free(p5);
-        matrix_free(p6);
-        matrix_free(p7);
-        
-        matrix_free(tmp_a);
-        matrix_free(tmp_b);
+        //matrix_free(a11);
+        //matrix_free(a12);
+        //matrix_free(a21);
+        //matrix_free(a22);
+        //
+        //matrix_free(b11);
+        //matrix_free(b12);
+        //matrix_free(b21);
+        //matrix_free(b22);
+        //
+        //matrix_free(c11);
+        //matrix_free(c12);
+        //matrix_free(c21);
+        //matrix_free(c22);
+        //
+        //matrix_free(p1);
+        //matrix_free(p2);
+        //matrix_free(p3);
+        //matrix_free(p4);
+        //matrix_free(p5);
+        //matrix_free(p6);
+        //matrix_free(p7);
+        //
+        //matrix_free(tmp_a);
+        //matrix_free(tmp_b);
     }
 }
 
@@ -511,8 +499,19 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
         padded_result = c;
     }
 
+    matrix_t p1 = matrix_new(new_size, new_size);
+    matrix_t p2 = matrix_new(new_size, new_size);
+    matrix_t p3 = matrix_new(new_size, new_size);
+    matrix_t p4 = matrix_new(new_size, new_size);
+    matrix_t p5 = matrix_new(new_size, new_size);
+    matrix_t p6 = matrix_new(new_size, new_size);
+    matrix_t p7 = matrix_new(new_size, new_size);
+
+    matrix_t tmp_a = matrix_new(new_size, new_size);
+    matrix_t tmp_b = matrix_new(new_size, new_size);
+
     // Pad the matrix for the strassen algorithm to be able to divide them into equal 2^n lengthed parts
-    strassen(padded_result, padded_a, padded_b, new_size);
+    strassen(padded_result, padded_a, padded_b, new_size, new_size, p1, p2, p3, p4, p5, p6, p7, tmp_a, tmp_b);
 
     // Free the padded variables as they won't be necessary anymore
     if (pad_a) matrix_free(padded_a);
@@ -523,6 +522,17 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
         matrix_unpad(c, padded_result, m, l, new_size);
         matrix_free(padded_result);
     }
+
+    matrix_free(p1);
+    matrix_free(p2);
+    matrix_free(p3);
+    matrix_free(p4);
+    matrix_free(p5);
+    matrix_free(p6);
+    matrix_free(p7);
+    
+    matrix_free(tmp_a);
+    matrix_free(tmp_b);
 }
 
 int main(int argc, char **argv) {
@@ -601,7 +611,7 @@ int main(int argc, char **argv) {
         padded_d = matrix_new(new_size, new_size);
     }
 
-    matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size);
+    matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size, new_size);
     // Free the padded variables as they won't be necessary anymore
     if (pad_a) matrix_free(padded_a);
     if (pad_b) matrix_free(padded_b);
