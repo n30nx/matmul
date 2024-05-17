@@ -42,7 +42,7 @@
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b
 
-#define LEAFSIZE 1024
+#define LEAFSIZE 512
 
 /*
  * I've used uint16_t because:
@@ -292,10 +292,6 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
 
             if (q + 16 <= size) {
                 _mm256_store_si256((__m256i*)(c + j * c_size + q), acc_vec);  // Store the result back to 'c'
-                /*for (uint16_t i = 0; i < 16; i++) {
-                    printf("%hu ", *(c + j * c_size + q + i));
-                }
-                printf("\n\n");*/
             } else {
                 // Handle remaining columns that do not fill a full SIMD register width
                 uint16_t temp[16];
@@ -303,8 +299,6 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
                 _mm256_storeu_si256((__m256i*)temp, acc_vec);
                 for (uint16_t r = 0; r < size % 16; r++) {
                     c[j * c_size + q + r] = temp[r];
-                    //printf("%hu ", r);
-                    //printf("\n\n");
                 }
             }
         }
@@ -372,23 +366,7 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
         matrix_t tmp_a = matrix_new(new_size, new_size);
         matrix_t tmp_b = matrix_new(new_size, new_size);
 
-        // Divide to submatrices
-        /*for (uint16_t i = 0; i < new_size; i++) {
-            for (uint16_t j = 0; j < new_size; j++) {
-                a11[i * new_size + j] = a[i * size + j];
-                a12[i * new_size + j] = a[i * size + j + new_size];
-                a21[i * new_size + j] = a[(i + new_size) * size + j];
-                a22[i * new_size + j] = a[(i + new_size) * size + j + new_size];
-                
-                b11[i * new_size + j] = b[i * size + j];
-                b12[i * new_size + j] = b[i * size + j + new_size];
-                b21[i * new_size + j] = b[(i + new_size) * size + j];
-                b22[i * new_size + j] = b[(i + new_size) * size + j + new_size];
-            }
-        }*/
-
         // p1 = a11 * (b12 - b22)
-        //printf("%hu\n", new_size);
         matrix_sub(tmp_b, b12, b22, new_size, new_size, b_size, b_size);
         strassen(p1, a11, tmp_b, new_size, new_size, a_size, new_size);
 
@@ -435,32 +413,6 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
         matrix_sub(c22, c22, p3, new_size, c_size, c_size, new_size);
         matrix_sub(c22, c22, p7, new_size, c_size, c_size, new_size);
         
-        // Place the output to the relevant quadrants
-        //for (uint16_t i = 0; i < new_size; i++) {
-        //    for (uint16_t j = 0; j < new_size; j++) {
-        //        c[i * size + j] = c11[i * new_size + j]; 
-        //        c[i * size + (j + new_size)] = c12[i * new_size + j]; 
-        //        c[(i + new_size) * size + j] = c21[i * new_size + j]; 
-        //        c[(i + new_size) * size + (j + new_size)] = c22[i * new_size + j]; 
-        //    }
-        //}
-
-        // Free used memory
-        //matrix_free(a11);
-        //matrix_free(a12);
-        //matrix_free(a21);
-        //matrix_free(a22);
-        //
-        //matrix_free(b11);
-        //matrix_free(b12);
-        //matrix_free(b21);
-        //matrix_free(b22);
-        //
-        //matrix_free(c11);
-        //matrix_free(c12);
-        //matrix_free(c21);
-        //matrix_free(c22);
-        //
         matrix_free(p1);
         matrix_free(p2);
         matrix_free(p3);
@@ -468,80 +420,10 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
         matrix_free(p5);
         matrix_free(p6);
         matrix_free(p7);
-        //
+
         matrix_free(tmp_a);
         matrix_free(tmp_b);
     }
-}
-
-// FrodoKEM Matrix Multiplication
-// REFS: https://eprint.iacr.org/2021/711.pdf
-//       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
-void matrix_mult(matrix_t c, matrix_t a, matrix_t b, uint16_t m, uint16_t n, uint16_t l) {
-#if defined(__x86_64__)
-    __m256i b_vec, acc_vec;
-    #pragma omp parallel for
-    for (uint16_t j = 0; j < m; j++) {
-        for (uint16_t q = 0; q < l; q += 16) {
-            acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
-
-            for (uint16_t p = 0; p < n; p += 8) {  // Assuming n is a multiple of 8
-                // TODO: comment this part if you need more speed
-                // it lowers the cache miss rate roughly ~0.5%
-                // but adding at least 10 seconds to the execution of
-                // big (8192x8192) matrixes.
-                //if (q + 64 <= l) {
-                //    _mm_prefetch((const char*)(b + (p + 0) * l + q + 64), _MM_HINT_T0);
-                //}
-                //
-                __m256i sp_vec[8];
-                for (uint16_t k = 0; k < 8; k++) {
-                    sp_vec[k] = _mm256_set1_epi16(a[j * n + p + k]);  // Broadcast elements from 'a'
-                }
-
-                for (uint16_t k = 0; k < 8; k++) {
-                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * l + q));  // Load 16 elements from 'b'
-                    acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
-                }
-            }
-
-            if (q + 16 <= l) {
-                _mm256_store_si256((__m256i*)(c + j * l + q), acc_vec);  // Store the result back to 'c'
-            } else {
-                // Handle remaining columns that do not fill a full SIMD register width
-                uint16_t temp[16];
-                _mm256_storeu_si256((__m256i*)temp, acc_vec);
-                for (uint16_t r = 0; r < l % 16; r++) {
-                    c[j * l + q + r] = temp[r];
-                }
-            }
-        }
-    }
-#else
-#define BLOCK_SIZE 256
-    // Zero out the result matrix
-    uint16_t i, j, k, i0, j0, k0;
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < l; j++) {
-            c[i * l + j] = 0;
-        }
-    }
-
-    // Cache-efficient matrix algorithm
-    for (i0 = 0; i0 < n; i0 += BLOCK_SIZE) {
-        for (j0 = 0; j0 < l; j0 += BLOCK_SIZE) {
-            for (k0 = 0; k0 < m; k0 += BLOCK_SIZE) {
-                for (i = i0; i < i0 + BLOCK_SIZE && i < n; i++) {
-                    for (j = j0; j < j0 + BLOCK_SIZE && j < l; j++) {
-                        for (k = k0; k < k0 + BLOCK_SIZE && k < m; k++) {
-                            c[i * l + j] += a[i * n + k] * b[k * l + j];
-                        }
-                    }
-                }
-            }
-        }
-    }
-#endif
 }
 
 void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
@@ -578,7 +460,7 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
 
     // Pad the matrix for the strassen algorithm to be able to divide them into equal 2^n lengthed parts
     strassen(padded_result, padded_a, padded_b, new_size, new_size, new_size, new_size);
-    //matrix_print(stdout, padded_result, new_size, new_size);
+
     // Free the padded variables as they won't be necessary anymore
     if (pad_a) matrix_free(padded_a);
     if (pad_b) matrix_free(padded_b);
@@ -632,7 +514,7 @@ int main(int argc, char **argv) {
 
     uint16_t new_size = round_size(max(max(m, n), l));
     new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
-   
+
     bool pad_a = new_size != m || new_size != n;
     matrix_t padded_a;
     if (!pad_a) {
@@ -659,20 +541,16 @@ int main(int argc, char **argv) {
         padded_d = matrix_new(new_size, new_size);
     }
 
-    matrix_mult(padded_d, padded_a, padded_b, new_size, new_size, new_size);
+    matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size, new_size);
     // Free the padded variables as they won't be necessary anymore
     if (pad_a) matrix_free(padded_a);
     if (pad_b) matrix_free(padded_b);
-
-
-    // matrix_print(stdout, padded_d, new_size, new_size);
 
     // Remove the padding to print properly
     if (pad_result) {
         matrix_unpad(d_matrix, padded_d, m, l, new_size);
         matrix_free(padded_d);
     }
-
 #endif
     matrix_prepare_and_mul(c_matrix, a_matrix, b_matrix, m, n, l);
 
