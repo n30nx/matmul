@@ -1,7 +1,7 @@
 CC = gcc
 INTRINSICS = -mavx
 CFLAGS = -march=native
-DEBUG = -g -D DEBUG
+DEBUG = -g -D DEBUG -v -save-temps -fno-strict-aliasing -fwrapv -fno-aggressive-loop-optimizations
 OPTIMIZE = -O3 -funroll-loops -fopenmp
 WARN = -Wall -Wextra
 SEQ = -D SEQUENTIAL
