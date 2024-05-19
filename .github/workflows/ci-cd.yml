@@ -13,9 +13,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Download Perf
+    - name: Install and Configure Perf
       run: |
         sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+        echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
     - name: Run Compare Build
       run: |
         make cmp
