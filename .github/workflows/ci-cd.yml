@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Download Perf
       run: |
-        apt-get install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+        sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
     - name: Run Compare Build
       run: |
         make cmp
