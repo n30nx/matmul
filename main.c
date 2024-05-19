@@ -36,12 +36,11 @@
     #define DBG(...)
 #endif
 
-//#define a fprintf(stdout, "%s:%d\n", __FUNCTION__, __LINE__); } while(0)
-
 // Didn't want to link maths library for just max and min functions
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b
 
+#define BLOCK_SIZE 1024
 #define LEAFSIZE 512
 
 /*
@@ -74,6 +73,7 @@ static inline void matrix_free(matrix_t matrix) {
     free(matrix);
 #endif
 }
+
 #pragma endregion // mem
 
 #pragma region utils
@@ -253,22 +253,21 @@ static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t
 }
 
 __attribute__((always_inline, unused))
-static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t l) {
+static inline bool matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t l) {
     // Check if matrixes are equal (used for validating multiplication)
     for (uint16_t i = 0; i < m; i++) {
         for (uint16_t j = 0; j < l; j++) {
             if (a[i * l + j] != b[i * l + j]) {
-                printf("Function is wrong!\n");
-                return;
+                return false;
             }
         }
     }
-    printf("Function is correct!\n");
+    return true;
 }
+
 #pragma endregion // utils
 
-#define BLOCK_SIZE 1024
-void matrix_mult_normal(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
+static void matrix_mult_normal(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
     uint16_t i, j, k, i0, j0, k0;
     for (i = 0; i < size; i++) {
         for (j = 0; j < size; j++) {
@@ -295,7 +294,7 @@ void matrix_mult_normal(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint1
 // FrodoKEM Matrix Multiplication
 // REFS: https://eprint.iacr.org/2021/711.pdf
 //       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
-void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
+static void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
 #if defined(__x86_64__)
     __m256i b_vec, acc_vec;
     #pragma omp parallel for private(b_vec, acc_vec)
@@ -475,6 +474,7 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
 }
 
 int main(int argc, char **argv) {
+    int ret_val = 0;
     uint16_t m, n, l;
 
     // Read the params from stdin if supplied
@@ -565,7 +565,9 @@ int main(int argc, char **argv) {
     //matrix_print(stdout, c_matrix, m, l);
     matrix_print(stdout, d_matrix, m, l);
 
-    matrix_eq(c_matrix, d_matrix, m, l);
+    ret_val = !(matrix_eq(c_matrix, d_matrix, m, l));
+    if (ret_val == 0) printf("Function is correct!\n");
+    else printf("Function is not correct!\n");
     matrix_free(d_matrix);
 #endif
 
@@ -574,5 +576,5 @@ int main(int argc, char **argv) {
     matrix_free(b_matrix);
     matrix_free(c_matrix);
 
-    return 0;
+    return ret_val;
 }
