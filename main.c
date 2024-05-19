@@ -563,7 +563,7 @@ int main(int argc, char **argv) {
 
 #if defined(COMPARE)
     //matrix_print(stdout, c_matrix, m, l);
-    matrix_print(stdout, d_matrix, m, l);
+    //matrix_print(stdout, d_matrix, m, l);
 
     ret_val = !(matrix_eq(c_matrix, d_matrix, m, l));
     if (ret_val == 0) printf("Function is correct!\n");
