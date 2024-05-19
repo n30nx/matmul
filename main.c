@@ -78,7 +78,8 @@ static inline void matrix_free(matrix_t matrix) {
 
 #pragma region utils
 
-static bool is_power_of_two(uint16_t n)
+__attribute__((always_inline))
+static inline bool is_power_of_two(uint16_t n)
 {
     uint16_t i = 0;
     while (n > 0) {
