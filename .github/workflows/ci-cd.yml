@@ -1,0 +1,39 @@
+name: C CI/CD
+
+on:
+  push:
+    branches: [ "experimental" ]
+  pull_request:
+    branches: [ "experimental" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Download Perf
+      run: |
+        apt-get install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+    - name: Run Compare Build
+      run: |
+        make cmp
+        ./main 1024 1024 1024
+        ./main 2048 2048 2048
+        ./main 4096 4096 4096
+    - name: Check for Memory Leaks and Overflows
+      run: |
+        make asan
+        ./main 1024 1024 1024
+        ./main 2048 2048 2048
+        ./main 4096 4096 4096
+    - name: Run Relase Build
+      run: |
+        make
+        perf -B -e cache-references,cache-misses,cycles,instructions,branches,faults,migrations ./main 1024 1024 1024
+        perf -B -e cache-references,cache-misses,cycles,instructions,branches,faults,migrations ./main 2048 2048 2048
+        perf -B -e cache-references,cache-misses,cycles,instructions,branches,faults,migrations ./main 4096 4096 4096
+    - name: Show CPU Details
+      run: |
+        lscpu
