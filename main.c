@@ -203,9 +203,8 @@ static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uin
         }
     }
 #else
-    uint16_t i, j;
-    for (i = 0; i < size; i++) {
-        for (j = 0; j < size; j++) {
+    for (uint16_t i = 0; i < size; i++) {
+        for (uint16_t j = 0; j < size; j++) {
             c[i * c_size + j] = a[i * a_size + j] - b[i * b_size + j];
         }
     }
@@ -267,45 +266,8 @@ static inline void matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
 }
 #pragma endregion // utils
 
-// FrodoKEM Matrix Multiplication
-// REFS: https://eprint.iacr.org/2021/711.pdf
-//       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
-void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
-#if defined(__x86_64__)
-    __m256i b_vec, acc_vec;
-    #pragma omp parallel for
-    for (uint16_t j = 0; j < size; j++) {
-        for (uint16_t q = 0; q < size; q += 16) {
-            acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
-
-            for (uint16_t p = 0; p < size; p += 8) {  // Assuming size is a multiple of 8
-                __m256i sp_vec[8];
-                for (uint16_t k = 0; k < 8; k++) {
-                    sp_vec[k] = _mm256_set1_epi16(a[j * a_size + p + k]);  // Broadcast elements from 'a'
-                }
-
-                for (uint16_t k = 0; k < 8; k++) {
-                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * b_size + q));  // Load 16 elements from 'b'
-                    acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
-                }
-            }
-
-            if (q + 16 <= size) {
-                _mm256_store_si256((__m256i*)(c + j * c_size + q), acc_vec);  // Store the result back to 'c'
-            } else {
-                // Handle remaining columns that do not fill a full SIMD register width
-                uint16_t temp[16];
-                printf("else:\n\n");
-                _mm256_storeu_si256((__m256i*)temp, acc_vec);
-                for (uint16_t r = 0; r < size % 16; r++) {
-                    c[j * c_size + q + r] = temp[r];
-                }
-            }
-        }
-    }
-#else
 #define BLOCK_SIZE 1024
-    // Zero out the result matrix
+void matrix_mult_normal(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
     uint16_t i, j, k, i0, j0, k0;
     for (i = 0; i < size; i++) {
         for (j = 0; j < size; j++) {
@@ -327,6 +289,45 @@ void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
             }
         }
     }
+}
+
+// FrodoKEM Matrix Multiplication
+// REFS: https://eprint.iacr.org/2021/711.pdf
+//       https://github.com/microsoft/PQCrypto-LWEKE/blob/a2f9dec8917ccc3464b3378d46b140fa7353320d/FrodoKEM/src/frodo_macrify.c#L252
+void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
+#if defined(__x86_64__)
+    __m256i b_vec, acc_vec;
+    #pragma omp parallel for private(b_vec, acc_vec)
+    for (uint16_t j = 0; j < size; j++) {
+        for (uint16_t q = 0; q < size; q += 16) {
+            acc_vec = _mm256_setzero_si256();  // Initialize acc_vec to zero
+
+            for (uint16_t p = 0; p < size; p += 8) {  // Assuming size is a multiple of 8
+                __m256i sp_vec[8];
+                for (uint16_t k = 0; k < 8; k++) {
+                    sp_vec[k] = _mm256_set1_epi16(a[j * a_size + p + k]);  // Broadcast elements from 'a'
+                }
+
+                for (uint16_t k = 0; k < 8; k++) {
+                    b_vec = _mm256_load_si256((__m256i*)(b + (p + k) * b_size + q));  // Load 16 elements from 'b'
+                    acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
+                }
+            }
+
+            if (q + 16 <= size) {
+                _mm256_store_si256((__m256i*)(c + j * c_size + q), acc_vec);  // Store the result back to 'c'
+            } else {
+                // Handle remaining columns that do not fill a full SIMD register width
+                uint16_t temp[16];
+                _mm256_storeu_si256((__m256i*)temp, acc_vec);
+                for (uint16_t r = 0; r < size % 16; r++) {
+                    c[j * c_size + q + r] = temp[r];
+                }
+            }
+        }
+    }
+#else
+    matrix_mult_normal(c, a, b, size, c_size, a_size, b_size);
 #endif
 }
 
@@ -541,7 +542,7 @@ int main(int argc, char **argv) {
         padded_d = matrix_new(new_size, new_size);
     }
 
-    matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size, new_size);
+    matrix_mult_normal(padded_d, padded_a, padded_b, new_size, new_size, new_size, new_size);
     // Free the padded variables as they won't be necessary anymore
     if (pad_a) matrix_free(padded_a);
     if (pad_b) matrix_free(padded_b);
@@ -560,6 +561,9 @@ int main(int argc, char **argv) {
     fclose(matrix_out);
 
 #if defined(COMPARE)
+    //matrix_print(stdout, c_matrix, m, l);
+    matrix_print(stdout, d_matrix, m, l);
+
     matrix_eq(c_matrix, d_matrix, m, l);
     matrix_free(d_matrix);
 #endif
