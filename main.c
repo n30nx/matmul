@@ -51,8 +51,6 @@
  */
 typedef uint16_t *matrix_t;
 
-#pragma region mem
-
 __attribute__((always_inline))
 static inline matrix_t matrix_new(uint16_t row, uint16_t col) {
 #if defined(__x86_64__)
@@ -73,10 +71,6 @@ static inline void matrix_free(matrix_t matrix) {
     free(matrix);
 #endif
 }
-
-#pragma endregion // mem
-
-#pragma region utils
 
 __attribute__((always_inline))
 static inline bool is_power_of_two(uint16_t n)
@@ -265,8 +259,7 @@ static inline bool matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
     return true;
 }
 
-#pragma endregion // utils
-
+__attribute__((unused))
 static void matrix_mult_normal(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
     uint16_t i, j, k, i0, j0, k0;
     for (i = 0; i < size; i++) {
