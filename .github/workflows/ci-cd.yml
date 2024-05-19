@@ -16,6 +16,7 @@ jobs:
     - name: Install and Configure Perf
       run: |
         sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+        sudo apt install valgrind
         echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
     - name: Run Compare Build
       run: |
@@ -31,9 +32,13 @@ jobs:
     - name: Run Relase Build
       run: |
         make
-        perf stat -B -e cache-references,cache-misses,cycles,instructions,branches,faults,migrations ./main 1024 1024 1024
-        perf stat -B -e cache-references,cache-misses,cycles,instructions,branches,faults,migrations ./main 2048 2048 2048
-        perf stat -B -e cache-references,cache-misses,cycles,instructions,branches,faults,migrations ./main 4096 4096 4096
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --LL=1048576,16,64 ./main 1024 1024 1024
+        cg_annotate cachegrind*
+        rm -rf cachegrind*
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --LL=1048576,16,64 ./main 2048 2048 2048
+        cg_annotate cachegrind*
+        rm -rf cachegrind*
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --LL=1048576,16,64 ./main 4096 4096 4096
     - name: Show CPU Details
       run: |
         lscpu
