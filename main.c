@@ -477,7 +477,7 @@ int main(int argc, char **argv) {
         sscanf(*(argv + 3), "%hu", &l);
     } else {
         // Read the params
-        scanf("%hu %hu %hu", &m, &n, &l);
+        (void)scanf("%hu %hu %hu", &m, &n, &l);
     }
 
     // Create matrixes
