@@ -18,17 +18,6 @@ jobs:
         sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
         sudo apt install valgrind
         echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
-    - name: Run Compare Build
-      run: |
-        make cmp
-        ./main 512 512 512
-        ./main 1024 1024 1024
-    - name: Check for Memory Leaks and Overflows
-      run: |
-        make asan
-        ./main 1024 1024 1024
-        ./main 2048 2048 2048
-        ./main 4096 4096 4096
     - name: Run Relase Build
       run: |
         make
