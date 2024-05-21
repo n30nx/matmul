@@ -23,10 +23,10 @@ seq:
 	$(BASE) $(SEQ)
 
 cmp:
-	$(BASE) $(CMP) $(SEQ)
+	$(BASE) $(SEQ) $(CMP)
 
 debug:
-	$(BASE) $(SEQ) $(DEBUG)
+	$(BASE) $(SEQ) $(CMP) $(DEBUG)
 
 asan:
 	$(BASE) $(SEQ) $(ASAN)

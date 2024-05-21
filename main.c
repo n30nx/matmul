@@ -47,7 +47,7 @@
  * I've used uint16_t because:
  * 1- If I need to do 1000x1000 * 1000x1000 matrix multiplication I'm
  * gonna need way more bits and it's not feasible
- * 2- I'd like to think the elements of the matrix \every M_{i} \in Z/2^16Z
+ * 2- I'd like to think the elements of the matrix \forall M_{i} \in Z/2^{16}Z
  */
 typedef uint16_t *matrix_t;
 
@@ -111,6 +111,7 @@ static inline uint16_t u16_log2(size_t size) {
     return log_table[((size - (size >> 1)) * 0x07EDD5E59A4E28C2) >> 58];
 }
 
+// Round size to the next power of two
 __attribute__((always_inline))
 static inline uint16_t round_size(uint16_t size) {
     if (is_power_of_two(size)) {
@@ -128,9 +129,10 @@ static inline uint16_t round_size(uint16_t size) {
     return size;
 }
 
-__attribute__((always_inline))
+
+// Pretty straight-forward, assigns random (mod 2^16) to all indexes
+__attribute__((always_inline, unused))
 static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t col) {
-    // Pretty straight-forward, assigns random (mod 2^16) to all indexes
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
             matrix[i * col + j] = rand() % UINT16_MAX;
@@ -138,9 +140,9 @@ static inline void matrix_assign_random(matrix_t matrix, uint16_t row, uint16_t 
     }
 }
 
+// Print values to the given stream
 __attribute__((always_inline))
-static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16_t row, uint16_t col) {
-    // Writes values to the given stream
+static inline void matrix_print(FILE *stream, matrix_t restrict matrix, uint16_t row, uint16_t col) {
     for (uint16_t i = 0; i < row; i++) {
         for (uint16_t j = 0; j < col; j++) {
             fprintf(stream, "%hu ", matrix[i * col + j]);
@@ -151,22 +153,15 @@ static inline void matrix_print(FILE *stream, matrix_t __restrict matrix, uint16
 }
 
 __attribute__((always_inline))
-static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
+static inline void matrix_add(matrix_t c, matrix_t a, matrix_t restrict b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
 #if defined(__x86_64__)
     #pragma omp parallel for
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j += 16) {
-            if (j + 16 <= size) {  // Ensure we do not go out of bounds
-                __m256i vec_a = _mm256_load_si256((__m256i*)(a + i * a_size + j));  // Load 16 elements from a
-                __m256i vec_b = _mm256_load_si256((__m256i*)(b + i * b_size + j));  // Load 16 elements from b
-                __m256i vec_sub = _mm256_add_epi16(vec_a, vec_b);      // Subtract the elements
-                _mm256_store_si256((__m256i*)(c + i * c_size + j), vec_sub);        // Store the result in c
-            } else {
-                // Handle the case where remaining elements are less than 16
-                for (uint16_t k = j; k < size; k++) {
-                    c[i * c_size + k] = a[i * a_size + k] + b[i * b_size + k]; // Non-intrinsic subtraction for remaining elements
-                }
-            }
+            __m256i vec_a = _mm256_load_si256((__m256i*)(a + i * a_size + j));  // Load 16 elements from a
+            __m256i vec_b = _mm256_load_si256((__m256i*)(b + i * b_size + j));  // Load 16 elements from b
+            __m256i vec_sub = _mm256_add_epi16(vec_a, vec_b);                   // Add the elements
+            _mm256_store_si256((__m256i*)(c + i * c_size + j), vec_sub);        // Store the result in c
         }
     }
 #else
@@ -179,22 +174,15 @@ static inline void matrix_add(matrix_t c, matrix_t a, matrix_t __restrict b, uin
 }
 
 __attribute__((always_inline))
-static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
+static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t restrict b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
 #if defined(__x86_64__)
     #pragma omp parallel for
     for (uint16_t i = 0; i < size; i++) {
         for (uint16_t j = 0; j < size; j += 16) {
-            if (j + 16 <= size) {  // Ensure we do not go out of bounds
-                __m256i vec_a = _mm256_load_si256((__m256i*)(a + i * a_size + j));  // Load 16 elements from a
-                __m256i vec_b = _mm256_load_si256((__m256i*)(b + i * b_size + j));  // Load 16 elements from b
-                __m256i vec_sub = _mm256_sub_epi16(vec_a, vec_b);      // Subtract the elements
-                _mm256_store_si256((__m256i*)(c + i * c_size + j), vec_sub);        // Store the result in c
-            } else {
-                // Handle the case where remaining elements are less than 16
-                for (uint16_t k = j; k < size; k++) {
-                    c[i * c_size + k] = a[i * a_size + k] - b[i * b_size + k]; // Non-intrinsic subtraction for remaining elements
-                }
-            }
+            __m256i vec_a = _mm256_load_si256((__m256i*)(a + i * a_size + j));  // Load 16 elements from a
+            __m256i vec_b = _mm256_load_si256((__m256i*)(b + i * b_size + j));  // Load 16 elements from b
+            __m256i vec_sub = _mm256_sub_epi16(vec_a, vec_b);                   // Subtract the elements
+            _mm256_store_si256((__m256i*)(c + i * c_size + j), vec_sub);        // Store the result in c
         }
     }
 #else
@@ -207,7 +195,7 @@ static inline void matrix_sub(matrix_t c, matrix_t a, matrix_t __restrict b, uin
 }
 
 __attribute__((always_inline))
-static inline void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
+static inline void matrix_pad(matrix_t dest, matrix_t restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_row, uint16_t src_col) {
 #if defined(__x86_64__)
     __m256i zero = _mm256_setzero_si256();
     for (uint16_t i = 0; i < dest_row; i++) {
@@ -236,7 +224,7 @@ static inline void matrix_pad(matrix_t dest, matrix_t __restrict src, uint16_t d
 }
 
 __attribute__((always_inline))
-static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_size) {
+static inline void matrix_unpad(matrix_t dest, matrix_t restrict src, uint16_t dest_row, uint16_t dest_col, uint16_t src_size) {
     DBG("dest_start = %p, dest_end = %p, length = %hu", dest, dest + dest_row * dest_col, dest_row * dest_col);
     DBG("src_start = %p, src_end = %p, length = %hu", src, src + src_size * src_size, src_size * src_size);
     DBG("dest_row = %hu", dest_row);
@@ -247,7 +235,7 @@ static inline void matrix_unpad(matrix_t dest, matrix_t __restrict src, uint16_t
 }
 
 __attribute__((always_inline, unused))
-static inline bool matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t l) {
+static inline bool matrix_eq(matrix_t restrict a, matrix_t restrict b, uint16_t m, uint16_t l) {
     // Check if matrixes are equal (used for validating multiplication)
     for (uint16_t i = 0; i < m; i++) {
         for (uint16_t j = 0; j < l; j++) {
@@ -257,31 +245,6 @@ static inline bool matrix_eq(matrix_t __restrict a, matrix_t __restrict b, uint1
         }
     }
     return true;
-}
-
-__attribute__((unused))
-static void matrix_mult_normal(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) {
-    uint16_t i, j, k, i0, j0, k0;
-    for (i = 0; i < size; i++) {
-        for (j = 0; j < size; j++) {
-            c[i * c_size + j] = 0;
-        }
-    }
-
-    // Cache-efficient matrix algorithm
-    for (i0 = 0; i0 < size; i0 += BLOCK_SIZE) {
-        for (j0 = 0; j0 < size; j0 += BLOCK_SIZE) {
-            for (k0 = 0; k0 < size; k0 += BLOCK_SIZE) {
-                for (i = i0; i < i0 + BLOCK_SIZE && i < size; i++) {
-                    for (j = j0; j < j0 + BLOCK_SIZE && j < size; j++) {
-                        for (k = k0; k < k0 + BLOCK_SIZE && k < size; k++) {
-                            c[i * c_size + j] += a[i * a_size + k] * b[k * b_size + j];
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 // FrodoKEM Matrix Multiplication
@@ -306,28 +269,38 @@ static void matrix_multiply(matrix_t c, matrix_t a, matrix_t b, uint16_t size, u
                     acc_vec = _mm256_add_epi16(acc_vec, _mm256_mullo_epi16(sp_vec[k], b_vec));  // Multiply and accumulate
                 }
             }
+            _mm256_store_si256((__m256i*)(c + j * c_size + q), acc_vec);  // Store the result back to 'c'
+        }
+    }
+#else
+    uint16_t i, j, k, i0, j0, k0;
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < size; j++) {
+            c[i * c_size + j] = 0;
+        }
+    }
 
-            if (q + 16 <= size) {
-                _mm256_store_si256((__m256i*)(c + j * c_size + q), acc_vec);  // Store the result back to 'c'
-            } else {
-                // Handle remaining columns that do not fill a full SIMD register width
-                uint16_t temp[16];
-                _mm256_storeu_si256((__m256i*)temp, acc_vec);
-                for (uint16_t r = 0; r < size % 16; r++) {
-                    c[j * c_size + q + r] = temp[r];
+    // Cache-efficient matrix algorithm
+    for (i0 = 0; i0 < size; i0 += BLOCK_SIZE) {
+        for (j0 = 0; j0 < size; j0 += BLOCK_SIZE) {
+            for (k0 = 0; k0 < size; k0 += BLOCK_SIZE) {
+                for (i = i0; i < i0 + BLOCK_SIZE && i < size; i++) {
+                    for (j = j0; j < j0 + BLOCK_SIZE && j < size; j++) {
+                        for (k = k0; k < k0 + BLOCK_SIZE && k < size; k++) {
+                            c[i * c_size + j] += a[i * a_size + k] * b[k * b_size + j];
+                        }
+                    }
                 }
             }
         }
     }
-#else
-    matrix_mult_normal(c, a, b, size, c_size, a_size, b_size);
 #endif
 }
 
 // Strassen Algorithm
 // REF: https://en.wikipedia.org/wiki/Strassen_algorithm
 static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t c_size, uint16_t a_size, uint16_t b_size) { 
-    // I know this looks shady but it's the best one for cache-misses, doesn't matter small or big numbers, 512 or 1024 does the trick.
+    // Switch to normal matrix multiplication when size hits LEAFSIZE
     if (size <= LEAFSIZE) {
         matrix_multiply(c, a, b, size, c_size, a_size, b_size);
     } else {
@@ -349,6 +322,7 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
         matrix_t c21 = c + new_size * c_size;
         matrix_t c22 = c + new_size * c_size + new_size;
 
+        // Allocate solution matrices
         matrix_t p1 = matrix_new(new_size, new_size);
         matrix_t p2 = matrix_new(new_size, new_size);
         matrix_t p3 = matrix_new(new_size, new_size);
@@ -407,6 +381,7 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
         matrix_sub(c22, c22, p3, new_size, c_size, c_size, new_size);
         matrix_sub(c22, c22, p7, new_size, c_size, c_size, new_size);
         
+        // Free
         matrix_free(p1);
         matrix_free(p2);
         matrix_free(p3);
@@ -420,14 +395,17 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
     }
 }
 
-void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restrict b, uint16_t m, uint16_t n, uint16_t l) {
+void matrix_prepare_and_mul(matrix_t c, matrix_t restrict a, matrix_t restrict b, uint16_t m, uint16_t n, uint16_t l) {
     // Get the padding size
     uint16_t new_size = round_size(max(max(m, n), l));
     new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
     DBG("new_size: %hu", new_size);
 
+    // Allocate padded matrices if necessary
     bool pad_a = new_size != m || new_size != n;
     matrix_t padded_a;
+    // I've used the NOT operator on purpose here, when used as `if (pad_a)`
+    // it causes more branch faults.
     if (!pad_a) {
         padded_a = a;
     } else {
@@ -437,6 +415,8 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
 
     bool pad_b = new_size != n || new_size != l;
     matrix_t padded_b;
+    // I've used the NOT operator on purpose here, when used as `if (pad_b)`
+    // it causes more branch faults.
     if (!pad_b) {
         padded_b = b;
     } else {
@@ -444,7 +424,7 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
         matrix_pad(padded_b, b, new_size, new_size, n, l);
     }
 
-    bool pad_result = new_size != m || new_size != l;
+    bool pad_result = new_size != n || new_size != l;
     matrix_t padded_result;
     if (pad_result) {
         padded_result = matrix_new(new_size, new_size);
@@ -459,7 +439,7 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
     if (pad_a) matrix_free(padded_a);
     if (pad_b) matrix_free(padded_b);
 
-    // Remove the padding to print properly
+    // Unpad the result matrix if necessary
     if (pad_result) {
         matrix_unpad(c, padded_result, m, l, new_size);
         matrix_free(padded_result);
@@ -467,7 +447,9 @@ void matrix_prepare_and_mul(matrix_t c, matrix_t __restrict a, matrix_t __restri
 }
 
 int main(int argc, char **argv) {
+    // Return value of main
     int ret_val = 0;
+
     uint16_t m, n, l;
 
     // Read the params from stdin if supplied
@@ -485,6 +467,7 @@ int main(int argc, char **argv) {
     matrix_t b_matrix = matrix_new(n, l);
     matrix_t c_matrix = matrix_new(m, l);
 
+    // Seed the random generator
     srand(time(NULL));
 
 #if defined(SEQUENTIAL)
@@ -512,6 +495,8 @@ int main(int argc, char **argv) {
 
     bool pad_a = new_size != m || new_size != n;
     matrix_t padded_a;
+    // I've used the NOT operator on purpose here, when used as `if (pad_a)`
+    // it causes more branch faults.
     if (!pad_a) {
         padded_a = a_matrix;
     } else {
@@ -521,6 +506,8 @@ int main(int argc, char **argv) {
 
     bool pad_b = new_size != n || new_size != l;
     matrix_t padded_b;
+    // I've used the NOT operator on purpose here, when used as `if (pad_b)`
+    // it causes more branch faults.
     if (!pad_b) {
         padded_b = b_matrix;
     } else {
@@ -530,13 +517,16 @@ int main(int argc, char **argv) {
 
     bool pad_result = new_size != m || new_size != l;
     matrix_t padded_d;
+    // I've used the NOT operator on purpose here, when used as `if (pad_result)`
+    // it causes more branch faults.
     if (!pad_result) {
         padded_d = d_matrix;
     } else {
         padded_d = matrix_new(new_size, new_size);
     }
 
-    matrix_mult_normal(padded_d, padded_a, padded_b, new_size, new_size, new_size, new_size);
+    matrix_multiply(padded_d, padded_a, padded_b, new_size, new_size, new_size, new_size);
+
     // Free the padded variables as they won't be necessary anymore
     if (pad_a) matrix_free(padded_a);
     if (pad_b) matrix_free(padded_b);
@@ -555,12 +545,11 @@ int main(int argc, char **argv) {
     fclose(matrix_out);
 
 #if defined(COMPARE)
-    //matrix_print(stdout, c_matrix, m, l);
-    //matrix_print(stdout, d_matrix, m, l);
-
     ret_val = !(matrix_eq(c_matrix, d_matrix, m, l));
+
     if (ret_val == 0) printf("Function is correct!\n");
     else printf("Function is not correct!\n");
+
     matrix_free(d_matrix);
 #endif
 
