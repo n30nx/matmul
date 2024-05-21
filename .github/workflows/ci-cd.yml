@@ -2,9 +2,9 @@ name: C CI/CD
 
 on:
   push:
-    branches: [ "experimental" ]
+    branches: [ "final" ]
   pull_request:
-    branches: [ "experimental" ]
+    branches: [ "final" ]
 
 jobs:
   build:
@@ -22,23 +22,24 @@ jobs:
       run: |
         make cmp
         ./main 512 512 512
+        ./main 512 512 510
+        /main 1024 1024 1020
         ./main 1024 1024 1024
     - name: Check for Memory Leaks and Overflows
       run: |
         make asan
-        ./main 1024 1024 1024
-        ./main 2048 2048 2048
-        ./main 4096 4096 4096
+        ./main 2048 2048 2040
+        ./main 4000 4000 420
     - name: Run Relase Build
       run: |
         make
-        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 1024 1024 1024
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 2048 1024 1912
         cg_annotate cachegrind*
         rm -rf cachegrind*
-        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 2048 2048 2048
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 512 1672 1002
         cg_annotate cachegrind*
         rm -rf cachegrind*
-        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 4096 4096 4096
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 2651 3412 4009
     - name: Show CPU Details
       run: |
         lscpu
