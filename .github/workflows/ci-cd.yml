@@ -23,7 +23,7 @@ jobs:
         make cmp
         ./main 512 512 512
         ./main 512 512 510
-        /main 1024 1024 1020
+        ./main 1024 1024 1020
         ./main 1024 1024 1024
     - name: Check for Memory Leaks and Overflows
       run: |
