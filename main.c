@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <limits.h>
 #include <time.h>
-#include <omp.h>
 
 // This part is for allowing me to work from my MacBook
 #if defined(__APPLE__)
@@ -21,6 +20,7 @@
 #endif
 
 #if defined(__x86_64__)
+    #include <omp.h>
     #include <immintrin.h>
 #endif
 //
