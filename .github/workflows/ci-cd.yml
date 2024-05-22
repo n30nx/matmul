@@ -28,7 +28,9 @@ jobs:
     - name: Check for Memory Leaks and Overflows
       run: |
         make asan
+        ./main 1024 1024 1024
         ./main 2048 2048 2040
+        ./main 4096 4096 4096
         ./main 4000 4000 420
     - name: Run Relase Build
       run: |
