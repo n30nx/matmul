@@ -40,7 +40,7 @@
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b
 
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 512
 #define LEAFSIZE 512
 
 /*
@@ -228,6 +228,8 @@ static inline void matrix_unpad(matrix_t dest, matrix_t restrict src, uint16_t d
     DBG("dest_start = %p, dest_end = %p, length = %hu", dest, dest + dest_row * dest_col, dest_row * dest_col);
     DBG("src_start = %p, src_end = %p, length = %hu", src, src + src_size * src_size, src_size * src_size);
     DBG("dest_row = %hu", dest_row);
+
+    // Iterate over each row in the destination matrix
     for (uint16_t i = 0; i < dest_row; i++) {
         DBG("copying to dest + %hu (%hu * %hu) from src + %hu (%hu * %hu), with the size %hu", dest_col * i, dest_col, i, src_size * i, src_size, i, dest_col);
         memcpy(dest + dest_col * i, src + src_size * i, sizeof(uint16_t) * dest_col); // Copy data from the padded matrix
@@ -397,9 +399,13 @@ static void strassen(matrix_t c, matrix_t a, matrix_t b, uint16_t size, uint16_t
 
 void matrix_prepare_and_mul(matrix_t c, matrix_t restrict a, matrix_t restrict b, uint16_t m, uint16_t n, uint16_t l) {
     // Get the padding size
-    uint16_t new_size = round_size(max(max(m, n), l));
+    // So apparently gcc likes to optimize max(max(m, n), l)
+    // into something nonsensical and finds max(max(1024, 1002), 1056)
+    // to be 1024 so I had to tell the compiler NOT to optimize this...
+    volatile uint16_t m1 = max(m, n);
+    volatile uint16_t m2 = max(m1, l);
+    uint16_t new_size = round_size(m2);
     new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
-    DBG("new_size: %hu", new_size);
 
     // Allocate padded matrices if necessary
     bool pad_a = new_size != m || new_size != n;
@@ -490,7 +496,13 @@ int main(int argc, char **argv) {
 #if defined(COMPARE)
     matrix_t d_matrix = matrix_new(m, l);
 
-    uint16_t new_size = round_size(max(max(m, n), l));
+    // Get the padding size
+    // So apparently gcc likes to optimize max(max(m, n), l)
+    // into something nonsensical and finds max(max(1024, 1002), 1056)
+    // to be 1024 so I had to tell the compiler NOT to optimize this...
+    volatile uint16_t m1 = max(m, n);
+    volatile uint16_t m2 = max(m1, l);
+    uint16_t new_size = round_size(m2);
     new_size = new_size < LEAFSIZE ? LEAFSIZE : new_size;
 
     bool pad_a = new_size != m || new_size != n;
@@ -536,6 +548,10 @@ int main(int argc, char **argv) {
         matrix_unpad(d_matrix, padded_d, m, l, new_size);
         matrix_free(padded_d);
     }
+
+    FILE *matrix_o = fopen("matrix_output_cmp.txt", "w");
+    matrix_print(matrix_o, d_matrix, m, l);
+    fclose(matrix_o);
 #endif
     matrix_prepare_and_mul(c_matrix, a_matrix, b_matrix, m, n, l);
 
