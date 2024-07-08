@@ -73,17 +73,8 @@ static inline void matrix_free(matrix_t matrix) {
 }
 
 __attribute__((always_inline))
-static inline bool is_power_of_two(uint16_t n)
-{
-    uint16_t i = 0;
-    while (n > 0) {
-        if ((n & 1) == 1) {
-            i++;
-        }
-        n = n >> 1;
-    }
- 
-    return i == 1;
+static inline bool is_power_of_two(uint16_t n) {
+    return n != 0 && (n & (n - 1)) == 0;
 }
 
 static const int log_table[64] = {
