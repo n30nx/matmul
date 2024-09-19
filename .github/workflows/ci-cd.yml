@@ -1,0 +1,33 @@
+name: C CI/CD
+
+on:
+  push:
+    branches: [ "modular" ]
+  pull_request:
+    branches: [ "modular" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install and Configure Perf
+      run: |
+        sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+        sudo apt install valgrind
+        echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+    - name: Run Relase Build
+      run: |
+        make
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 1024 1024 1024
+        cg_annotate cachegrind*
+        rm -rf cachegrind*
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 2048 2048 2048
+        cg_annotate cachegrind*
+        rm -rf cachegrind*
+        valgrind --tool=cachegrind --I1=32768,8,64 --D1=32768,8,64 --L2=262144,4,64 --LL=6291456,12,64 ./main 4096 4096 4096
+    - name: Show CPU Details
+      run: |
+        lscpu

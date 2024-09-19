@@ -1,31 +1,35 @@
 CC = gcc
 INTRINSICS = -mavx
 CFLAGS = -march=native
-DEBUG = -g -D DEBUG
-OPTIMIZE = -O3 -funroll-loops
-WARN = -Wall -Wextra
-SEQ = -D SEQUENTIAL
-SRC = main.c
-OUT = -o main
+DEBUG = -g -DDEBUG -v -save-temps -fno-strict-aliasing -fwrapv -fno-aggressive-loop-optimizations
+OPTIMIZE = -O3 -funroll-loops -fopenmp
+WARN = -Wall -Wextra -Wno-attributes
+SEQ = -DSEQUENTIAL
+SRC = $(wildcard src/*.c) main.c
+OBJS = $(patsubst src/%.c, build/%.o, $(SRC))
+INC = includes/
+CMP = -DCOMPARE
 ASAN = -fsanitize=address,undefined
 
-BASE = $(CC) $(OPTIMIZE) $(WARN) $(OUT) $(CFLAGS) $(SRC)
+BASE = $(CC) $(OPTIMIZE) $(WARN) $(CFLAGS) -I $(INC)
 
 ifeq ($(shell uname -m),x86_64)
   BASE += $(INTRINSICS)
 endif
 
+EXE = main
+
+all: build $(EXE)
+
 build:
-	$(BASE)
+	@mkdir -p build/
 
-seq:
-	$(BASE) $(SEQ)
+build/%.o: src/%.c
+	$(BASE) -c $< -o $@
 
-debug:
-	$(BASE) $(SEQ) $(DEBUG)
+$(EXE): $(OBJS)
+	$(BASE) -o $(EXE) $(OBJS)
 
-asan:
-	$(BASE) $(SEQ) $(ASAN)
+clean:
+	rm -rf build $(EXE)
 
-asandbg:
-	$(BASE) $(SEQ) $(DEBUG) $(ASAN)
